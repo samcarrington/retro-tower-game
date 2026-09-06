@@ -264,3 +264,33 @@ The addendum may add only `src/render/particle-system.ts`,
 `tests/audio.test.ts`, plus modifications to the existing files named above.
 Do not add audio/image assets, runtime dependencies, mobile controls, a
 framework, production debug globals, or renderer-owned gameplay decisions.
+
+## Task 13: Full-scene CRT shader
+
+**Files:** Create `src/render/crt-filter.ts`, `tests/crt-filter.test.ts`;
+modify `src/render/pixi-renderer.ts`, `README.md`.
+
+1. Add the navy 960x540 field as stage geometry so the filter processes every
+   game pixel rather than only non-background objects.
+2. Create one PixiJS v8 `Filter.from` WebGL fragment filter for the stage.
+   Distort UVs radially with subtle convex barrel curvature, darken samples
+   outside the curved field, modulate luminance with horizontal scanlines, add
+   low-amplitude animated fine noise, and apply a gentle edge vignette.
+3. Use proposed tuning values: curvature `0.045`, scanline strength `0.11`,
+   noise strength `0.025`. Keep these as playtest constants rather than game
+   rules.
+   Normalise the radial warp against the maximum corner radius so the convex
+   treatment never leaves an unsampled wedge at a stage corner.
+4. Set `stage.filterArea` to the exact logical field, use one filter pass with
+   no back-buffer dependency, and update only the time uniform from active frame
+   elapsed time. Focus/visibility pause therefore freezes noise animation.
+5. Dispose the filter before renderer teardown. Do not change simulation
+   coordinates, collision, input mapping, or logical canvas dimensions.
+6. Unit-test the filter controls and valid time advancement. Run `pnpm test`,
+   `pnpm run lint`, and `pnpm run build`.
+7. Browser-smoke shader compilation, full-background coverage, subtle curvature,
+   scanlines, animated noise, responsive views at 1280x800 and 640x800, and no
+   console errors.
+
+The addendum completion constraints now also permit
+`src/render/crt-filter.ts` and `tests/crt-filter.test.ts`.

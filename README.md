@@ -19,6 +19,9 @@ Open the local URL printed by Vite. Press **Start patrol**, then use **Space** t
 
 Sound begins only after a Start, Restart, or Space gesture because browsers block automatic audio. If Web Audio is unavailable, the game remains playable and shows a small status message.
 
+The entire game field is rendered through a subtle CRT effect with curved glass,
+scanlines, animated analogue noise, and edge darkening.
+
 ## Checks
 
 ```sh

@@ -34,6 +34,9 @@ The following features extend the original game:
   run, the ship immediately climbs higher, giving the player more survival
   time. Repeated destruction of one position cannot substitute for clearing
   all nine.
+- The whole rendered game field has a restrained CRT treatment: slight convex
+  screen distortion, horizontal scanlines, animated fine noise, and gentle edge
+  darkening. Gameplay coordinates and collision behaviour remain unchanged.
 
 These additions must preserve the one-airborne-bomb rule, deterministic
 gameplay tests, fixed-step simulation, responsive 960x540 logical field, and

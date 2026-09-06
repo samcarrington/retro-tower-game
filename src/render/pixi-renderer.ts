@@ -1,4 +1,4 @@
-import { Application, Container, Graphics } from "pixi.js";
+import { Application, Container, Graphics, Rectangle } from "pixi.js";
 import {
   COLOURS,
   DANGER_Y,
@@ -11,6 +11,7 @@ import {
 } from "../game/config";
 import type { GameRenderer } from "../browser/session";
 import { ParticleSystem } from "./particle-system";
+import { CrtSceneFilter } from "./crt-filter";
 
 const PARTICLE_CAPACITY = 128;
 
@@ -61,7 +62,9 @@ export async function createPixiRenderer(host: HTMLElement): Promise<GameRendere
   app.canvas.setAttribute("aria-label", "Skyline Bomber game field");
   host.replaceChildren(app.canvas);
 
-  const scenery = new Graphics();
+  const scenery = new Graphics()
+    .rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT)
+    .fill(COLOURS.navy);
   const stars = [
     [72, 42], [156, 108], [247, 52], [342, 116], [456, 38], [565, 92],
     [678, 50], [778, 111], [892, 35], [924, 86], [38, 168], [520, 164],
@@ -80,6 +83,7 @@ export async function createPixiRenderer(host: HTMLElement): Promise<GameRendere
   const ship = createShipGraphic();
   const bomb = new Graphics().rect(0, 0, 6, 12).fill(COLOURS.cream);
   const particleSystem = new ParticleSystem(PARTICLE_CAPACITY);
+  const crtFilter = new CrtSceneFilter();
   const particleLayer = new Container();
   const particleViews = Array.from({ length: PARTICLE_CAPACITY }, () => {
     const particle = new Graphics().rect(-2, -2, 4, 4).fill(0xffffff);
@@ -91,9 +95,12 @@ export async function createPixiRenderer(host: HTMLElement): Promise<GameRendere
   app.stage.addChild(scenery);
   for (const tower of towerViews) app.stage.addChild(tower.container);
   app.stage.addChild(ship, bomb, particleLayer);
+  app.stage.filterArea = new Rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+  app.stage.filters = [crtFilter.filter];
 
   return {
     render: (state, frameSeconds = 0) => {
+      crtFilter.update(frameSeconds);
       ship.position.set(Math.round(state.ship.rect.x), Math.round(state.ship.rect.y));
       bomb.visible = state.bomb !== null;
       if (state.bomb) {
@@ -129,6 +136,8 @@ export async function createPixiRenderer(host: HTMLElement): Promise<GameRendere
       app.renderer.render(app.stage);
     },
     destroy: () => {
+      app.stage.filters = null;
+      crtFilter.destroy();
       app.destroy({ removeView: true }, { children: true });
     },
   };

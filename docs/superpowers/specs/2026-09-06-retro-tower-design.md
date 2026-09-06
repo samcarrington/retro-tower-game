@@ -90,6 +90,13 @@
   on the ship.
 - Particle systems are bounded and pooled; they must not allocate an unbounded
   number of display objects during a long run.
+- Apply one custom WebGL filter to the complete 960x540 Pixi stage. It provides
+  subtle convex barrel distortion, scanlines, animated fine-grain noise, and a
+  mild vignette. The navy field must be stage geometry so the effect covers
+  background pixels as well as entities.
+- Set the known logical field as `filterArea` to avoid recursive bounds
+  measurement. The shader is presentation-only and must not alter logical
+  positions, collision coordinates, input, or simulation timing.
 
 ## Verification
 
@@ -115,6 +122,9 @@
 - Test audio event routing without creating a real AudioContext in jsdom.
 - Browser-smoke the three sound effects and both particle bursts, and verify
   particle pools return to an inactive state after their lifetimes.
+- Browser-smoke the full-scene CRT filter at both responsive viewport sizes,
+  checking subtle curvature, visible scanlines/noise, stable edges, and no
+  shader compilation or console errors.
 
 ## Exclusions/tuning
 
