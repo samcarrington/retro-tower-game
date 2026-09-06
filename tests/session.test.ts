@@ -5,6 +5,7 @@ import {
   type GameElements,
   type GameRenderer,
 } from "../src/browser/session";
+import type { GameAudio } from "../src/browser/audio";
 import type { GameState } from "../src/game/types";
 
 function createElements(): GameElements {
@@ -12,7 +13,7 @@ function createElements(): GameElements {
     <main id="region" tabindex="-1"></main><div id="host"></div><span id="score"></span>
     <div id="start"><button id="start-button"></button></div>
     <div id="gameover" hidden><span id="reason"></span><button id="restart"></button></div>
-    <div id="paused" hidden></div><div id="error" hidden></div>
+    <div id="paused" hidden></div><div id="audio" hidden></div><div id="error" hidden></div>
   `;
   return {
     region: document.querySelector("#region")!,
@@ -24,12 +25,13 @@ function createElements(): GameElements {
     gameoverReason: document.querySelector("#reason")!,
     restartButton: document.querySelector("#restart")!,
     pausedIndicator: document.querySelector("#paused")!,
+    audioStatus: document.querySelector("#audio")!,
     errorOverlay: document.querySelector("#error")!,
   };
 }
 
 function createClockHarness() {
-  let callbacks: { step: (dt: number) => void; render: () => void } | undefined;
+  let callbacks: { step: (dt: number) => void; render: (dt: number) => void } | undefined;
   const clock = {
     start: vi.fn(),
     setActive: vi.fn(),
@@ -38,12 +40,20 @@ function createClockHarness() {
   };
   return {
     clock,
-    factory: (value: { step: (dt: number) => void; render: () => void }) => {
+    factory: (value: { step: (dt: number) => void; render: (dt: number) => void }) => {
       callbacks = value;
       return clock;
     },
     step: (dt: number) => callbacks?.step(dt),
-    render: () => callbacks?.render(),
+    render: (dt = 0) => callbacks?.render(dt),
+  };
+}
+
+function createAudio(): GameAudio {
+  return {
+    resume: vi.fn().mockResolvedValue(undefined),
+    play: vi.fn(),
+    destroy: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -60,6 +70,7 @@ describe("game session", () => {
     await expect(
       createGameSession(elements, {
         createRenderer: () => Promise.reject(new Error("WebGL unavailable")),
+        createAudio,
       }),
     ).rejects.toThrow("WebGL unavailable");
     expect(elements.startOverlay.hidden).toBe(true);
@@ -77,6 +88,7 @@ describe("game session", () => {
     const session = await createGameSession(elements, {
       createRenderer: () => Promise.resolve(renderer),
       createClock: harness.factory,
+      createAudio,
     });
 
     expect(session.getState().status).toBe("ready");
@@ -108,6 +120,7 @@ describe("game session", () => {
       createRenderer: () =>
         Promise.resolve({ render: vi.fn(), destroy: vi.fn() }),
       createClock: harness.factory,
+      createAudio,
     });
     elements.startButton.click();
     const before = session.getState();
@@ -133,6 +146,7 @@ describe("game session", () => {
     const session = await createGameSession(elements, {
       createRenderer: () => Promise.resolve({ render, destroy: vi.fn() }),
       createClock: harness.factory,
+      createAudio,
     });
     elements.startButton.click();
 
@@ -154,6 +168,52 @@ describe("game session", () => {
       bomb: null,
     });
     expect(render.mock.calls.length).toBeGreaterThan(renderCount);
+    session.dispose();
+  });
+
+  it("resumes audio from gestures and routes each effect once", async () => {
+    const elements = createElements();
+    const harness = createClockHarness();
+    const audio = createAudio();
+    const session = await createGameSession(elements, {
+      createRenderer: () => Promise.resolve({ render: vi.fn(), destroy: vi.fn() }),
+      createClock: harness.factory,
+      createAudio: () => audio,
+    });
+
+    elements.startButton.click();
+    await Promise.resolve();
+    expect(audio.resume).toHaveBeenCalledOnce();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", cancelable: true }));
+    harness.render();
+    harness.render();
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.play).toHaveBeenCalledWith("bomb-drop");
+
+    session.dispose();
+    await Promise.resolve();
+    expect(audio.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("keeps gameplay available when audio cannot resume", async () => {
+    const elements = createElements();
+    const harness = createClockHarness();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const audio = createAudio();
+    vi.mocked(audio.resume).mockRejectedValue(new Error("blocked"));
+    const session = await createGameSession(elements, {
+      createRenderer: () => Promise.resolve({ render: vi.fn(), destroy: vi.fn() }),
+      createClock: harness.factory,
+      createAudio: () => audio,
+    });
+
+    elements.startButton.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(session.getState().status).toBe("playing");
+    expect(elements.audioStatus.hidden).toBe(false);
+    expect(elements.audioStatus.textContent).toBe("Sound unavailable");
     session.dispose();
   });
 });

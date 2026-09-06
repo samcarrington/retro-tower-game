@@ -7,7 +7,7 @@ export interface AnimationFrameDriver {
 
 export interface FixedStepClockOptions {
   step: (dtSeconds: number) => void;
-  render: () => void;
+  render: (frameSeconds: number) => void;
   driver?: AnimationFrameDriver;
 }
 
@@ -18,7 +18,7 @@ const browserDriver: AnimationFrameDriver = {
 
 export class FixedStepClock {
   private readonly stepCallback: (dtSeconds: number) => void;
-  private readonly renderCallback: () => void;
+  private readonly renderCallback: (frameSeconds: number) => void;
   private readonly driver: AnimationFrameDriver;
   private frameHandle: number | null = null;
   private previousTimestamp: number | null = null;
@@ -51,22 +51,23 @@ export class FixedStepClock {
     if (!Number.isFinite(timestamp)) return;
     if (this.previousTimestamp === null) {
       this.previousTimestamp = timestamp;
-      this.renderCallback();
+      this.renderCallback(0);
       return;
     }
 
     const elapsed = Math.max(0, (timestamp - this.previousTimestamp) / 1000);
     this.previousTimestamp = timestamp;
 
-    if (this.active) {
-      this.accumulator += Math.min(elapsed, MAX_FRAME_SECONDS);
+    const activeElapsed = this.active ? Math.min(elapsed, MAX_FRAME_SECONDS) : 0;
+    if (activeElapsed > 0) {
+      this.accumulator += activeElapsed;
       while (this.accumulator + Number.EPSILON >= FIXED_STEP_SECONDS) {
         this.stepCallback(FIXED_STEP_SECONDS);
         this.accumulator -= FIXED_STEP_SECONDS;
       }
     }
 
-    this.renderCallback();
+    this.renderCallback(activeElapsed);
   }
 
   public dispose(): void {

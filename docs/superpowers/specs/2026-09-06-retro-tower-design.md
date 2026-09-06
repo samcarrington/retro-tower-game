@@ -7,9 +7,10 @@
 - Use nine stationary towers with independent randomized growth speeds.
 - Ship moves automatically from left to right. On leaving the right edge, it
   wraps to the left and descends slightly each lap.
-- Space keydown drops one bomb carrying the ship's forward velocity. Ignore key
-  repeat while Space is held. Allow at most one airborne bomb until the current
-  bomb hits or leaves the screen.
+- Space keydown drops one bomb carrying the ship's forward velocity. Horizontal
+  drag reduces that momentum while downward acceleration increases its falling
+  speed, producing a curved trajectory. Ignore key repeat while Space is held.
+  Allow at most one airborne bomb until the current bomb hits or leaves the screen.
 - A direct hit destroys a full tower for 100 points, once per destruction.
   The tower regrows at the same position after 2 seconds.
 - The game is a score-chasing run with no win condition.
@@ -27,6 +28,9 @@
   player destruction. Audio must not require external assets.
 - Give towers independently randomized growth rates on initial creation and
   reroll the rate after each respawn.
+- Secretly track distinct tower positions destroyed during a run. Destroying
+  all nine positions at least once awards one immediate upward ship movement;
+  the bonus can occur only once per run.
 
 ## Approach/architecture
 
@@ -52,9 +56,15 @@
   movement is automatic.
 - Bomb state permits one airborne bomb. A hit or off-screen exit clears that
   allowance. Its horizontal velocity is captured from the ship when dropped and
-  remains constant during that flight.
+  decays during flight while its vertical velocity accelerates downwards.
 - Direct tower destruction awards one score event and starts its two-second
   same-position regrowth.
+- Tower-clear progress is based on unique tower positions, persists through
+  their respawns, and resets only on a fresh run. Repeatedly destroying the
+  same position does not advance the unique-clear count.
+- The ninth distinct destruction applies the climb in the same simulation
+  transition as the hit, after the normal score award. It does not cancel an
+  already determined terminal loss.
 - Game over records and displays its reason: tower reached line, ship touched
   tower, or ship reached ground.
 - Restart creates a fresh run and resets score and entities.
@@ -86,14 +96,18 @@
 - Use a deterministic random source for repeatable growth tests.
 - Test tower growth, ship movement, right-to-left wrapping, and per-lap descent.
 - Test one-bomb limit and Space repeat suppression.
-- Test that a bomb inherits forward velocity, advances on both axes, and still
-  uses swept collision across its diagonal path.
+- Test that a bomb inherits forward velocity, loses horizontal speed, gains
+  downward speed, follows a curved path, and still uses swept collision across
+  each movement segment.
 - Test direct-hit full destruction and single score award.
 - Test deterministic tower and player effect events, including loss priority
   over a simultaneous tower hit.
 - Test two-second same-position respawn.
 - Test independent growth-rate assignment and fresh rate randomization on
   respawn using a deterministic random sequence.
+- Test unique tower-clear tracking, duplicate-position suppression, one-time
+  activation on the ninth distinct tower, climb bounds, terminal-loss priority,
+  and reset on restart.
 - Test maximum-height, ship/tower, and ship/ground loss conditions.
 - Test restart resets score and entities.
 - Test focus loss freezes and focus return resumes without catch-up.
@@ -114,6 +128,10 @@ Excluded from approved scope:
 
 The original straight-down bomb requirement and audio exclusion are superseded
 by the feature addendum approved on 6 September 2026.
+
+The tower-clear climb is intentionally undisclosed in player-facing
+instructions and documentation. Its exact climb distance is a playtest tuning
+constant defined in the implementation plan.
 
 Initial playtest tuning belongs in the implementation plan. It must define and
 validate numeric speed, height, size, drop, and related timing defaults without

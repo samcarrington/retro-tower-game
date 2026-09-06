@@ -99,13 +99,16 @@ fixed-step, lifecycle, and one-bomb constraints continue to apply.
 
 ### Addendum tuning defaults
 
-- Bomb horizontal speed: capture the ship's current `180 px/sec` forward speed
-  when dropped; keep the existing `420 px/sec` downward speed.
+- Bomb motion: capture the ship's current `180 px/sec` forward speed when
+  dropped; start at `420 px/sec` downward, apply `1.25/sec` exponential
+  horizontal drag, and accelerate downwards at `600 px/sec²`.
 - Tower growth: independently select `2..10 px/sec` at initial creation and
   every respawn. These are proposed playtest values, not new requirements.
 - Tower burst: `32` pooled square particles, `0.45s` lifetime.
 - Player burst: `64` pooled square particles, `0.9s` lifetime.
 - Audio: Web Audio API synthesis only; no audio package or external media files.
+- Secret tower-clear climb: move the ship upward `32px`, clamped to a top
+  position of `y=16`. This is a proposed playtest value, not a new requirement.
 
 ## Task 7: Forward bomb momentum and effect events TDD
 
@@ -115,9 +118,11 @@ fixed-step, lifecycle, and one-bomb constraints continue to apply.
 1. Replace `GameState.bomb: Rect|null` with a bomb state containing its rect and
    velocity. Capture the ship's horizontal speed at drop time; do not read the
    ship again during the bomb's flight.
-2. Move bombs on both axes during each fixed step. Extend swept collision to the
-   full previous-to-next bomb path so diagonal movement cannot tunnel through a
-   tower or report a hit through a horizontal gap.
+2. Move bombs on both axes during each fixed step. Apply exponential horizontal
+   drag so forward momentum decreases, and constant downward acceleration so
+   falling speed increases. Use analytical per-step displacement for both
+   forces, then sweep the full previous-to-next path so curved motion cannot
+   tunnel through a tower or report a hit through a horizontal gap.
 3. Add simulation-authored, monotonically identified transient effect events
    for `bomb-drop`, `tower-explosion`, and `player-explosion`. Include logical
    coordinates; tower events use the impact point and player events use the
@@ -127,10 +132,11 @@ fixed-step, lifecycle, and one-bomb constraints continue to apply.
    simultaneous tower explosion and score.
 5. Clear expired/acknowledged transient events without making the renderer an
    authority over gameplay. Restart resets the event sequence and active bomb.
-6. Tests must cover captured velocity, diagonal x/y values, diagonal swept hit,
-   diagonal miss, offscreen exit on either relevant boundary, one-bomb limit,
-   event coordinates, event uniqueness, simultaneous loss priority, terminal
-   freeze, and restart reset.
+6. Tests must cover captured velocity, exact drag and acceleration values,
+   successively smaller horizontal displacement, successively larger vertical
+   displacement, curved-path swept hit and miss, offscreen exit on either
+   relevant boundary, one-bomb limit, event coordinates, event uniqueness,
+   simultaneous loss priority, terminal freeze, and restart reset.
 7. Run `pnpm test tests/simulation.test.ts`, `pnpm test`, `pnpm run lint`, and
    `pnpm run build`; all must pass.
 
@@ -151,7 +157,34 @@ fixed-step, lifecycle, and one-bomb constraints continue to apply.
 5. Run `pnpm test tests/simulation.test.ts`, `pnpm test`, `pnpm run lint`, and
    `pnpm run build`; all must pass.
 
-## Task 9: Pooled particle rendering
+## Task 9: Secret all-towers bonus TDD
+
+**Files:** Modify `src/game/config.ts`, `src/game/types.ts`,
+`src/game/simulation.ts`, `tests/simulation.test.ts`.
+
+1. Add run-scoped progress for the nine distinct tower positions and a
+   one-time bonus-awarded flag. Use a nine-bit mask or an equivalently explicit
+   deterministic representation; do not infer progress from score because
+   respawned towers may be destroyed repeatedly.
+2. On a successful tower hit, mark that tower position as cleared. When the
+   ninth distinct bit is set for the first time, move the ship upward `32px`,
+   clamped to `y=16`, in the same transition as the score and destruction.
+3. Award the climb exactly once per run. Further tower destructions keep normal
+   scoring and respawning but cannot trigger another climb.
+4. Preserve terminal priority from Task 7. If a terminal condition was already
+   selected for the frame, no tower hit, clear progress, score, or bonus is
+   applied.
+5. `startGame`/restart clears the distinct-position mask and bonus flag. Do not
+   add a HUD counter, instruction, announcement, README entry, or other
+   player-facing disclosure; the visible ship movement is the secret reward.
+6. Tests must cover out-of-order distinct clears, repeated clears at one
+   position, activation only on the ninth distinct position, exact climb and
+   top clamp, no second award after tower respawns, terminal-loss priority, and
+   full reset on restart.
+7. Run `pnpm test tests/simulation.test.ts`, `pnpm test`, `pnpm run lint`, and
+   `pnpm run build`; all must pass.
+
+## Task 10: Pooled particle rendering
 
 **Files:** Create `src/render/particle-system.ts`,
 `tests/particle-system.test.ts`; modify `src/render/pixi-renderer.ts`.
@@ -174,7 +207,7 @@ fixed-step, lifecycle, and one-bomb constraints continue to apply.
 6. Run `pnpm test tests/particle-system.test.ts`, `pnpm test`,
    `pnpm run lint`, and `pnpm run build`; all must pass.
 
-## Task 10: Generated sound effects and session integration
+## Task 11: Generated sound effects and session integration
 
 **Files:** Create `src/browser/audio.ts`, `tests/audio.test.ts`; modify
 `src/browser/session.ts`, `src/main.ts`, `index.html`, `src/style.css`,
@@ -200,12 +233,13 @@ fixed-step, lifecycle, and one-bomb constraints continue to apply.
 7. Run `pnpm test tests/audio.test.ts tests/session.test.ts`, `pnpm test`,
    `pnpm run lint`, and `pnpm run build`; all must pass.
 
-## Task 11: Addendum browser verification and documentation
+## Task 12: Addendum browser verification and documentation
 
 **Files:** Modify `README.md`.
 
 1. Document diagonal bomb motion, particle effects, generated audio, browser
-   autoplay behaviour, and the newly widened tower-growth tuning range.
+   autoplay behaviour, and the newly widened tower-growth tuning range. Keep
+   the all-towers climb out of player-facing documentation so it remains secret.
 2. Run individually: `pnpm test`, `pnpm run lint`, `pnpm run build`,
    `pnpm run dev`, and `pnpm run preview`.
 3. Browser-smoke bomb x/y movement, one-bomb enforcement, tower burst, player
@@ -216,9 +250,12 @@ fixed-step, lifecycle, and one-bomb constraints continue to apply.
 5. Run a sustained automated or manual session with repeated tower
    destructions. Confirm display-object counts stay bounded and expired
    particles return to the pool.
-6. Record that final sound balance, particle feel, and growth range remain
-   human-playtest tuning. Report any changed constants rather than presenting
-   them as newly approved requirements.
+6. In a controlled smoke run, destroy all nine distinct tower positions and
+   verify the ship climbs once; destroy further respawned towers and verify it
+   does not climb again. Do not expose the condition in the public README.
+7. Record that final sound balance, particle feel, growth range, and secret
+   climb distance remain human-playtest tuning. Report any changed constants
+   rather than presenting them as newly approved requirements.
 
 ## Addendum completion constraints
 

@@ -176,6 +176,10 @@ button:focus-visible {
   text-transform: uppercase;
 }
 
+.audio-status {
+  color: #e8a443;
+}
+
 kbd {
   padding: 0.15rem 0.35rem;
   border: 1px solid #f6edcf;

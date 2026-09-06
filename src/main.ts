@@ -20,6 +20,7 @@ const elements: GameElements = {
   gameoverReason: requireElement("gameover-reason"),
   restartButton: requireElement<HTMLButtonElement>("restart-button"),
   pausedIndicator: requireElement("paused-indicator"),
+  audioStatus: requireElement("audio-status"),
   errorOverlay: requireElement("error-overlay"),
 };
 

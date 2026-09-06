@@ -10,6 +10,9 @@ import {
   WORLD_WIDTH,
 } from "../game/config";
 import type { GameRenderer } from "../browser/session";
+import { ParticleSystem } from "./particle-system";
+
+const PARTICLE_CAPACITY = 128;
 
 interface TowerView {
   container: Container;
@@ -76,17 +79,28 @@ export async function createPixiRenderer(host: HTMLElement): Promise<GameRendere
   const towerViews = Array.from({ length: TOWER_COUNT }, createTowerView);
   const ship = createShipGraphic();
   const bomb = new Graphics().rect(0, 0, 6, 12).fill(COLOURS.cream);
+  const particleSystem = new ParticleSystem(PARTICLE_CAPACITY);
+  const particleLayer = new Container();
+  const particleViews = Array.from({ length: PARTICLE_CAPACITY }, () => {
+    const particle = new Graphics().rect(-2, -2, 4, 4).fill(0xffffff);
+    particle.visible = false;
+    particleLayer.addChild(particle);
+    return particle;
+  });
 
   app.stage.addChild(scenery);
   for (const tower of towerViews) app.stage.addChild(tower.container);
-  app.stage.addChild(ship, bomb);
+  app.stage.addChild(ship, bomb, particleLayer);
 
   return {
-    render: (state) => {
+    render: (state, frameSeconds = 0) => {
       ship.position.set(Math.round(state.ship.rect.x), Math.round(state.ship.rect.y));
       bomb.visible = state.bomb !== null;
       if (state.bomb) {
-        bomb.position.set(Math.round(state.bomb.x), Math.round(state.bomb.y));
+        bomb.position.set(
+          Math.round(state.bomb.rect.x),
+          Math.round(state.bomb.rect.y),
+        );
       }
 
       state.towers.forEach((tower, index) => {
@@ -98,6 +112,18 @@ export async function createPixiRenderer(host: HTMLElement): Promise<GameRendere
         for (const window of view.windows) {
           window.visible = -window.y + 8 < tower.height;
         }
+      });
+
+      particleSystem.sync(state.runId, frameSeconds, state.effects);
+      particleSystem.particles.forEach((particle, index) => {
+        const view = particleViews[index];
+        if (!view) return;
+        view.visible = particle.active;
+        if (!particle.active) return;
+        view.position.set(Math.round(particle.x), Math.round(particle.y));
+        view.tint = particle.colour;
+        view.alpha = Math.max(0, 1 - particle.age / particle.lifetime);
+        view.scale.set(particle.size / 4);
       });
 
       app.renderer.render(app.stage);

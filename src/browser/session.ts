@@ -1,10 +1,11 @@
 import { FixedStepClock } from "./clock";
+import { createBrowserAudio, type GameAudio } from "./audio";
 import { bindGameInput } from "./input";
 import { createGame, dropBomb, startGame, stepGame } from "../game/simulation";
 import type { GameOverReason, GameState } from "../game/types";
 
 export interface GameRenderer {
-  render(state: GameState): void;
+  render(state: GameState, frameSeconds?: number): void;
   destroy(): void;
 }
 
@@ -18,6 +19,7 @@ export interface GameElements {
   gameoverReason: HTMLElement;
   restartButton: HTMLButtonElement;
   pausedIndicator: HTMLElement;
+  audioStatus: HTMLElement;
   errorOverlay: HTMLElement;
 }
 
@@ -28,11 +30,12 @@ export interface GameSession {
 
 export interface GameSessionDependencies {
   createRenderer: (host: HTMLElement) => Promise<GameRenderer>;
+  createAudio?: () => GameAudio;
   document?: Document;
   window?: Window;
   createClock?: (options: {
     step: (dtSeconds: number) => void;
-    render: () => void;
+    render: (frameSeconds: number) => void;
   }) => Pick<FixedStepClock, "start" | "setActive" | "reset" | "dispose">;
 }
 
@@ -53,6 +56,12 @@ export async function createGameSession(
   let focused = doc.hasFocus();
   let visible = !doc.hidden;
   let renderer: GameRenderer;
+  const audio = (dependencies.createAudio ?? createBrowserAudio)();
+  let audioReady = false;
+  let audioUnavailable = false;
+  let audioActivation: Promise<void> | null = null;
+  let audioRunId = state.runId;
+  let lastAudioEffectId = 0;
 
   try {
     renderer = await dependencies.createRenderer(elements.canvasHost);
@@ -63,8 +72,51 @@ export async function createGameSession(
     throw error;
   }
 
-  const updatePresentation = (): void => {
-    renderer.render(state);
+  const reportAudioFailure = (error: unknown): void => {
+    if (audioUnavailable) return;
+    audioUnavailable = true;
+    elements.audioStatus.hidden = false;
+    elements.audioStatus.textContent = "Sound unavailable";
+    console.warn("Game audio is unavailable.", error);
+  };
+
+  const routeAudio = (): void => {
+    if (!audioReady || audioUnavailable) return;
+    if (state.runId !== audioRunId) {
+      audioRunId = state.runId;
+      lastAudioEffectId = 0;
+    }
+    for (const effect of state.effects) {
+      if (effect.id <= lastAudioEffectId) continue;
+      try {
+        audio.play(effect.type);
+        lastAudioEffectId = effect.id;
+      } catch (error) {
+        reportAudioFailure(error);
+        return;
+      }
+    }
+  };
+
+  const enableAudio = (): Promise<void> => {
+    if (audioReady || audioUnavailable) return Promise.resolve();
+    audioActivation ??= audio
+      .resume()
+      .then(() => {
+        audioReady = true;
+        elements.audioStatus.hidden = true;
+        routeAudio();
+      })
+      .catch(reportAudioFailure)
+      .finally(() => {
+        audioActivation = null;
+      });
+    return audioActivation;
+  };
+
+  const updatePresentation = (frameSeconds = 0): void => {
+    renderer.render(state, frameSeconds);
+    routeAudio();
     elements.score.textContent = state.score.toString().padStart(6, "0");
     elements.startOverlay.hidden = state.status !== "ready";
     elements.gameoverOverlay.hidden = state.status !== "gameover";
@@ -75,13 +127,13 @@ export async function createGameSession(
 
   const clockFactory =
     dependencies.createClock ??
-    ((options: { step: (dtSeconds: number) => void; render: () => void }) =>
+    ((options: { step: (dtSeconds: number) => void; render: (frameSeconds: number) => void }) =>
       new FixedStepClock(options));
 
   const clock = clockFactory({
     step: (dtSeconds) => {
       state = stepGame(state, dtSeconds);
-      clock.setActive(state.status === "playing" && focused && visible);
+      clock.setActive(state.status !== "ready" && focused && visible);
     },
     render: updatePresentation,
   });
@@ -91,6 +143,7 @@ export async function createGameSession(
     window: win,
     isPlaying: () => state.status === "playing",
     dropBomb: () => {
+      void enableAudio();
       state = dropBomb(state);
       updatePresentation();
     },
@@ -99,12 +152,13 @@ export async function createGameSession(
   const syncActivity = (): void => {
     focused = doc.hasFocus();
     visible = !doc.hidden;
-    clock.setActive(state.status === "playing" && focused && visible);
+    clock.setActive(state.status !== "ready" && focused && visible);
     input.reset();
     updatePresentation();
   };
 
   const begin = (): void => {
+    void enableAudio();
     state = startGame(state);
     clock.reset();
     clock.setActive(focused && visible);
@@ -147,6 +201,9 @@ export async function createGameSession(
       input.dispose();
       clock.dispose();
       renderer.destroy();
+      void audio.destroy().catch((error: unknown) => {
+        console.error("Unable to dispose game audio.", error);
+      });
     },
   };
 }

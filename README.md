@@ -1,6 +1,6 @@
 # Skyline Bomber
 
-A small retro browser game built with PixiJS 8 and a deterministic TypeScript simulation. Fly automatically across a growing city, drop one bomb at a time, and keep the skyline below the danger line.
+A small retro browser game built with PixiJS 8 and a deterministic TypeScript simulation. Fly automatically across a growing city, launch one momentum-carrying bomb at a time, and keep the skyline below the danger line.
 
 ## Requirements
 
@@ -15,7 +15,9 @@ pnpm install
 pnpm run dev
 ```
 
-Open the local URL printed by Vite. Press **Start patrol**, then use **Space** to drop a bomb. The ship flies and descends automatically. After a game over, choose **Fly again** for a fresh run.
+Open the local URL printed by Vite. Press **Start patrol**, then use **Space** to drop a bomb. Bombs continue moving forwards as they fall. The ship flies and descends automatically, while towers grow at independently changing rates. Tower and player destruction use generated pixel-particle bursts and synthesized browser audio. After a game over, choose **Fly again** for a fresh run.
+
+Sound begins only after a Start, Restart, or Space gesture because browsers block automatic audio. If Web Audio is unavailable, the game remains playable and shows a small status message.
 
 ## Checks
 
@@ -31,5 +33,5 @@ The simulation is independent of PixiJS and the DOM, and runs in deterministic 6
 ## Limitations
 
 - Desktop keyboard controls only; there are no mobile controls.
-- Visual feel and difficulty still require human playtesting.
+- Sound balance, particle feel, and the `2..10 px/sec` tower-growth range still require human playtesting.
 - Browser-specific renderer failure presentation is covered by shell tests, but unsupported GPU behaviour varies by browser and driver.

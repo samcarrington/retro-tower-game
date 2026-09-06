@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   BOMB_HEIGHT,
+  BOMB_FORWARD_SPEED,
+  BOMB_GRAVITY,
+  BOMB_HORIZONTAL_DRAG,
+  BOMB_SPEED,
   BOMB_WIDTH,
   GROUND_Y,
   SHIP_HEIGHT,
+  SHIP_MIN_Y,
+  SHIP_CLEAR_BONUS_CLIMB,
   SHIP_WIDTH,
   TOWER_HEIGHT_CAP,
   TOWER_RESPAWN_SECONDS,
@@ -15,7 +21,13 @@ import type { GameState } from "../src/game/types";
 const fixedRandom = (value: number) => () => value;
 
 function playing(random = fixedRandom(0)): GameState {
-  return startGame(createGame(random), random);
+  return startGame(createGame(fixedRandom(0)), random);
+}
+
+function towerAt(state: GameState, index: number) {
+  const tower = state.towers[index];
+  if (!tower) throw new Error(`Missing tower ${index}`);
+  return tower;
 }
 
 describe("simulation", () => {
@@ -24,7 +36,7 @@ describe("simulation", () => {
     expect(state.status).toBe("ready");
     expect(state.towers).toHaveLength(9);
     expect(state.towers[0]?.height).toBe(75);
-    expect(state.towers[0]?.growthRate).toBe(5);
+    expect(state.towers[0]?.growthRate).toBe(6);
     expect(state.towers[8]?.rect.x).toBe(848);
   });
 
@@ -32,9 +44,24 @@ describe("simulation", () => {
     const old = playing();
     old.score = 900;
     old.reason = "ground";
-    old.bomb = { x: 1, y: 2, width: 6, height: 12 };
+    old.destroyedTowerMask = 0b111111111;
+    old.towerClearBonusAwarded = true;
+    old.bomb = {
+      rect: { x: 1, y: 2, width: 6, height: 12 },
+      velocityX: BOMB_FORWARD_SPEED,
+      velocityY: BOMB_SPEED,
+    };
     const restarted = startGame(old, fixedRandom(1));
-    expect(restarted).toMatchObject({ status: "playing", score: 0, reason: null, bomb: null });
+    expect(restarted).toMatchObject({
+      status: "playing",
+      score: 0,
+      reason: null,
+      bomb: null,
+      destroyedTowerMask: 0,
+      towerClearBonusAwarded: false,
+      effects: [],
+      nextEffectId: 1,
+    });
     expect(restarted.towers[0]?.height).toBe(110);
   });
 
@@ -50,11 +77,16 @@ describe("simulation", () => {
     const state = playing();
     const dropped = dropBomb(state);
     expect(dropped.bomb).toEqual({
-      x: (SHIP_WIDTH - BOMB_WIDTH) / 2,
-      y: state.ship.rect.y + SHIP_HEIGHT,
-      width: BOMB_WIDTH,
-      height: BOMB_HEIGHT,
+      rect: {
+        x: (SHIP_WIDTH - BOMB_WIDTH) / 2,
+        y: state.ship.rect.y + SHIP_HEIGHT,
+        width: BOMB_WIDTH,
+        height: BOMB_HEIGHT,
+      },
+      velocityX: BOMB_FORWARD_SPEED,
+      velocityY: BOMB_SPEED,
     });
+    expect(dropped.effects.at(-1)).toMatchObject({ id: 1, type: "bomb-drop" });
     expect(dropBomb(dropped)).toBe(dropped);
     const ready = createGame(fixedRandom(0));
     expect(dropBomb(ready)).toBe(ready);
@@ -62,7 +94,7 @@ describe("simulation", () => {
 
   it("grows active towers independently and respawns at the same position", () => {
     const state = playing();
-    const tower = state.towers[0]!;
+    const tower = towerAt(state, 0);
     tower.height = 0;
     tower.rect.height = 0;
     tower.rect.y = GROUND_Y;
@@ -73,7 +105,7 @@ describe("simulation", () => {
     const respawned = stepGame(waiting, 1, fixedRandom(1));
     expect(respawned.towers[0]).toMatchObject({
       height: 110,
-      growthRate: 7,
+      growthRate: 10,
       respawnRemaining: 0,
     });
     expect(respawned.towers[0]?.rect.x).toBe(48);
@@ -81,11 +113,15 @@ describe("simulation", () => {
 
   it("uses swept bomb collision and starts a full respawn delay on the hit frame", () => {
     const state = playing();
-    const tower = state.towers[0]!;
+    const tower = towerAt(state, 0);
     tower.height = 40;
     tower.rect.y = GROUND_Y - 40;
     tower.rect.height = 40;
-    state.bomb = { x: tower.rect.x + 4, y: tower.rect.y - 80, width: 6, height: 12 };
+    state.bomb = {
+      rect: { x: tower.rect.x - 32, y: tower.rect.y - 80, width: 6, height: 12 },
+      velocityX: BOMB_FORWARD_SPEED,
+      velocityY: BOMB_SPEED,
+    };
     const next = stepGame(state, 0.2);
     expect(next.score).toBe(100);
     expect(next.bomb).toBeNull();
@@ -93,11 +129,16 @@ describe("simulation", () => {
       height: 0,
       respawnRemaining: TOWER_RESPAWN_SECONDS,
     });
+    expect(next.effects.at(-1)).toMatchObject({ type: "tower-explosion" });
   });
 
   it("does not hit through a horizontal gap and clears bombs at the bottom", () => {
     const state = playing();
-    state.bomb = { x: 10, y: WORLD_HEIGHT - 1, width: 6, height: 12 };
+    state.bomb = {
+      rect: { x: 10, y: WORLD_HEIGHT - 1, width: 6, height: 12 },
+      velocityX: BOMB_FORWARD_SPEED,
+      velocityY: BOMB_SPEED,
+    };
     const next = stepGame(state, 1 / 60);
     expect(next.score).toBe(0);
     expect(next.bomb).toBeNull();
@@ -105,7 +146,7 @@ describe("simulation", () => {
 
   it.each([
     ["tower-limit", (state: GameState) => {
-      const tower = state.towers[0]!;
+      const tower = towerAt(state, 0);
       tower.height = TOWER_HEIGHT_CAP;
       tower.rect.height = tower.height;
       tower.rect.y = GROUND_Y - tower.height;
@@ -114,7 +155,7 @@ describe("simulation", () => {
       state.ship.rect.y = GROUND_Y - SHIP_HEIGHT;
     }],
     ["ship-collision", (state: GameState) => {
-      state.ship.rect = { ...state.towers[0]!.rect, width: SHIP_WIDTH, height: SHIP_HEIGHT };
+      state.ship.rect = { ...towerAt(state, 0).rect, width: SHIP_WIDTH, height: SHIP_HEIGHT };
     }],
   ] as const)("ends with %s and freezes terminal state", (reason, arrange) => {
     const state = playing();
@@ -126,15 +167,119 @@ describe("simulation", () => {
 
   it("prioritises a loss over a simultaneous bomb hit", () => {
     const state = playing();
-    const tower = state.towers[0]!;
+    const tower = towerAt(state, 0);
     tower.height = TOWER_HEIGHT_CAP;
     tower.rect.y = GROUND_Y - tower.height;
     tower.rect.height = tower.height;
-    state.bomb = { x: tower.rect.x, y: tower.rect.y, width: 6, height: 12 };
+    state.bomb = {
+      rect: { x: tower.rect.x, y: tower.rect.y, width: 6, height: 12 },
+      velocityX: BOMB_FORWARD_SPEED,
+      velocityY: BOMB_SPEED,
+    };
     const next = stepGame(state, 1 / 60);
     expect(next.reason).toBe("tower-limit");
     expect(next.score).toBe(0);
     expect(next.bomb).not.toBeNull();
+    expect(next.effects).toHaveLength(1);
+    expect(next.effects[0]?.type).toBe("player-explosion");
+  });
+
+  it("curves a bomb with decaying forward momentum and downward acceleration", () => {
+    const dropped = dropBomb(playing());
+    const before = dropped.bomb?.rect;
+    if (!before) throw new Error("Expected an airborne bomb");
+    const next = stepGame(dropped, 0.1);
+    const horizontalDecay = Math.exp(-BOMB_HORIZONTAL_DRAG * 0.1);
+    const expectedX =
+      before.x + BOMB_FORWARD_SPEED * (1 - horizontalDecay) / BOMB_HORIZONTAL_DRAG;
+    const expectedY = before.y + BOMB_SPEED * 0.1 + 0.5 * BOMB_GRAVITY * 0.1 ** 2;
+    expect(next.bomb?.rect.x).toBeCloseTo(expectedX);
+    expect(next.bomb?.rect.y).toBeCloseTo(expectedY);
+    expect(next.bomb?.velocityX).toBeCloseTo(BOMB_FORWARD_SPEED * horizontalDecay);
+    expect(next.bomb?.velocityY).toBeCloseTo(BOMB_SPEED + BOMB_GRAVITY * 0.1);
+  });
+
+  it("travels less forwards and farther down in each successive interval", () => {
+    const dropped = dropBomb(playing());
+    const first = stepGame(dropped, 0.05);
+    const second = stepGame(first, 0.05);
+    if (!dropped.bomb || !first.bomb || !second.bomb) {
+      throw new Error("Expected the bomb to remain airborne");
+    }
+
+    const firstDeltaX = first.bomb.rect.x - dropped.bomb.rect.x;
+    const secondDeltaX = second.bomb.rect.x - first.bomb.rect.x;
+    const firstDeltaY = first.bomb.rect.y - dropped.bomb.rect.y;
+    const secondDeltaY = second.bomb.rect.y - first.bomb.rect.y;
+    expect(secondDeltaX).toBeLessThan(firstDeltaX);
+    expect(secondDeltaY).toBeGreaterThan(firstDeltaY);
+  });
+
+  it("assigns independent growth rates and rerolls only the respawned tower", () => {
+    const values = [0, 0, 0, 0.25, 0, 0.5, 0, 0.75, ...Array(10).fill(0)];
+    let index = 0;
+    const state = playing(() => values[index++] ?? 0);
+    expect(state.towers.slice(0, 4).map((tower) => tower.growthRate)).toEqual([2, 4, 6, 8]);
+    const unchangedRate = towerAt(state, 1).growthRate;
+    const firstTower = towerAt(state, 0);
+    firstTower.height = 0;
+    firstTower.rect.height = 0;
+    firstTower.respawnRemaining = 0.01;
+    const respawned = stepGame(state, 0.01, fixedRandom(1));
+    expect(respawned.towers[0]?.growthRate).toBe(10);
+    expect(respawned.towers[1]?.growthRate).toBe(unchangedRate);
+  });
+
+  it("awards one secret climb after all nine distinct towers are destroyed", () => {
+    let state = playing();
+    state.ship.rect.y = 120;
+
+    for (let towerIndex = 0; towerIndex < 9; towerIndex += 1) {
+      const tower = towerAt(state, towerIndex);
+      tower.height = 40;
+      tower.rect.height = 40;
+      tower.rect.y = GROUND_Y - 40;
+      tower.respawnRemaining = 0;
+      state.bomb = {
+        rect: { x: tower.rect.x, y: tower.rect.y - BOMB_HEIGHT, width: 6, height: 12 },
+        velocityX: 0,
+        velocityY: BOMB_SPEED,
+      };
+      state = stepGame(state, 0.001);
+    }
+
+    expect(state.destroyedTowerMask).toBe(0b111111111);
+    expect(state.towerClearBonusAwarded).toBe(true);
+    expect(state.ship.rect.y).toBe(120 - SHIP_CLEAR_BONUS_CLIMB);
+
+    const first = towerAt(state, 0);
+    first.height = 40;
+    first.rect.height = 40;
+    first.rect.y = GROUND_Y - 40;
+    first.respawnRemaining = 0;
+    state.bomb = {
+      rect: { x: first.rect.x, y: first.rect.y - BOMB_HEIGHT, width: 6, height: 12 },
+      velocityX: 0,
+      velocityY: BOMB_SPEED,
+    };
+    const repeated = stepGame(state, 0.001);
+    expect(repeated.ship.rect.y).toBe(120 - SHIP_CLEAR_BONUS_CLIMB);
+  });
+
+  it("clamps the secret climb to the minimum ship height", () => {
+    const state = playing();
+    state.ship.rect.y = SHIP_MIN_Y + 4;
+    state.destroyedTowerMask = 0b011111111;
+    const tower = towerAt(state, 8);
+    tower.height = 40;
+    tower.rect.height = 40;
+    tower.rect.y = GROUND_Y - 40;
+    state.bomb = {
+      rect: { x: tower.rect.x, y: tower.rect.y - BOMB_HEIGHT, width: 6, height: 12 },
+      velocityX: 0,
+      velocityY: BOMB_SPEED,
+    };
+    expect(stepGame(state, 0.001).ship.rect.y).toBe(SHIP_MIN_Y);
   });
 
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(

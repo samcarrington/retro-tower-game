@@ -1,14 +1,20 @@
 import {
   BOMB_HEIGHT,
+  BOMB_FORWARD_SPEED,
+  BOMB_GRAVITY,
+  BOMB_HORIZONTAL_DRAG,
   BOMB_SPEED,
   BOMB_WIDTH,
   DANGER_Y,
   GROUND_Y,
+  MAX_EFFECT_EVENTS,
+  SHIP_CLEAR_BONUS_CLIMB,
   SHIP_DESCENT_PER_LAP,
   SHIP_HEIGHT,
   SHIP_SPEED,
   SHIP_START_X,
   SHIP_START_Y,
+  SHIP_MIN_Y,
   SHIP_WIDTH,
   TOWER_COUNT,
   TOWER_FIRST_X,
@@ -24,7 +30,16 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "./config";
-import type { GameOverReason, GameState, RandomSource, Rect, TowerState } from "./types";
+import type {
+  GameEffectType,
+  GameOverReason,
+  GameState,
+  RandomSource,
+  Rect,
+  TowerState,
+} from "./types";
+
+const ALL_TOWERS_MASK = (1 << TOWER_COUNT) - 1;
 
 function randomBetween(random: RandomSource, minimum: number, maximum: number): number {
   const value = Math.min(1, Math.max(0, random()));
@@ -50,8 +65,11 @@ function cloneState(state: GameState): GameState {
   return {
     ...state,
     ship: { rect: { ...state.ship.rect }, laps: state.ship.laps },
-    bomb: state.bomb ? { ...state.bomb } : null,
+    bomb: state.bomb
+      ? { ...state.bomb, rect: { ...state.bomb.rect } }
+      : null,
     towers: state.towers.map((tower) => ({ ...tower, rect: { ...tower.rect } })),
+    effects: [...state.effects],
   };
 }
 
@@ -64,25 +82,78 @@ function overlaps(a: Rect, b: Rect): boolean {
   );
 }
 
+function segmentIntersectsRect(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  rect: Rect,
+): boolean {
+  const deltaX = endX - startX;
+  const deltaY = endY - startY;
+  let entry = 0;
+  let exit = 1;
+
+  const axes = [
+    [startX, deltaX, rect.x, rect.x + rect.width],
+    [startY, deltaY, rect.y, rect.y + rect.height],
+  ] as const;
+
+  for (const [start, delta, minimum, maximum] of axes) {
+    if (delta === 0) {
+      if (start < minimum || start > maximum) return false;
+      continue;
+    }
+
+    const first = (minimum - start) / delta;
+    const second = (maximum - start) / delta;
+    entry = Math.max(entry, Math.min(first, second));
+    exit = Math.min(exit, Math.max(first, second));
+    if (entry > exit) return false;
+  }
+
+  return true;
+}
+
 function bombSweepsTower(previous: Rect, next: Rect, tower: Rect): boolean {
-  const horizontalContact =
-    previous.x <= tower.x + tower.width && previous.x + previous.width >= tower.x;
-  return (
-    horizontalContact &&
-    previous.y <= tower.y + tower.height &&
-    next.y + next.height >= tower.y
-  );
+  return segmentIntersectsRect(previous.x, previous.y, next.x, next.y, {
+    x: tower.x - previous.width,
+    y: tower.y - previous.height,
+    width: tower.width + previous.width,
+    height: tower.height + previous.height,
+  });
+}
+
+function emitEffect(
+  state: GameState,
+  type: GameEffectType,
+  x: number,
+  y: number,
+): void {
+  state.effects = [
+    ...state.effects.slice(-(MAX_EFFECT_EVENTS - 1)),
+    { id: state.nextEffectId, type, x, y },
+  ];
+  state.nextEffectId += 1;
 }
 
 function finish(state: GameState, reason: Exclude<GameOverReason, null>): GameState {
   state.status = "gameover";
   state.reason = reason;
+  emitEffect(
+    state,
+    "player-explosion",
+    state.ship.rect.x + state.ship.rect.width / 2,
+    state.ship.rect.y + state.ship.rect.height / 2,
+  );
   return state;
 }
 
 export function createGame(random: RandomSource = Math.random): GameState {
   return {
     status: "ready",
+    runId: 0,
+    elapsedSeconds: 0,
     score: 0,
     ship: {
       rect: {
@@ -95,12 +166,16 @@ export function createGame(random: RandomSource = Math.random): GameState {
     },
     bomb: null,
     towers: Array.from({ length: TOWER_COUNT }, (_, index) => createTower(index, random)),
+    destroyedTowerMask: 0,
+    towerClearBonusAwarded: false,
+    effects: [],
+    nextEffectId: 1,
     reason: null,
   };
 }
 
-export function startGame(_state: GameState, random: RandomSource = Math.random): GameState {
-  return { ...createGame(random), status: "playing" };
+export function startGame(state: GameState, random: RandomSource = Math.random): GameState {
+  return { ...createGame(random), status: "playing", runId: state.runId + 1 };
 }
 
 export function dropBomb(state: GameState): GameState {
@@ -110,11 +185,21 @@ export function dropBomb(state: GameState): GameState {
 
   const next = cloneState(state);
   next.bomb = {
-    x: next.ship.rect.x + (next.ship.rect.width - BOMB_WIDTH) / 2,
-    y: next.ship.rect.y + next.ship.rect.height,
-    width: BOMB_WIDTH,
-    height: BOMB_HEIGHT,
+    rect: {
+      x: next.ship.rect.x + (next.ship.rect.width - BOMB_WIDTH) / 2,
+      y: next.ship.rect.y + next.ship.rect.height,
+      width: BOMB_WIDTH,
+      height: BOMB_HEIGHT,
+    },
+    velocityX: BOMB_FORWARD_SPEED,
+    velocityY: BOMB_SPEED,
   };
+  emitEffect(
+    next,
+    "bomb-drop",
+    next.bomb.rect.x + next.bomb.rect.width / 2,
+    next.bomb.rect.y + next.bomb.rect.height / 2,
+  );
   return next;
 }
 
@@ -132,6 +217,7 @@ export function stepGame(
   }
 
   const next = cloneState(state);
+  next.elapsedSeconds += dtSeconds;
 
   for (let index = 0; index < next.towers.length; index += 1) {
     const tower = next.towers[index];
@@ -172,26 +258,49 @@ export function stepGame(
   }
 
   if (next.bomb) {
-    const previousBomb = { ...next.bomb };
-    next.bomb.y += BOMB_SPEED * dtSeconds;
+    const previousBomb = { ...next.bomb.rect };
+    const horizontalDecay = Math.exp(-BOMB_HORIZONTAL_DRAG * dtSeconds);
+    next.bomb.rect.x +=
+      next.bomb.velocityX * (1 - horizontalDecay) / BOMB_HORIZONTAL_DRAG;
+    next.bomb.rect.y +=
+      next.bomb.velocityY * dtSeconds + 0.5 * BOMB_GRAVITY * dtSeconds ** 2;
+    next.bomb.velocityX *= horizontalDecay;
+    next.bomb.velocityY += BOMB_GRAVITY * dtSeconds;
     const hitIndex = next.towers.findIndex(
       (tower) =>
         tower.respawnRemaining === 0 &&
         next.bomb !== null &&
-        bombSweepsTower(previousBomb, next.bomb, tower.rect),
+        bombSweepsTower(previousBomb, next.bomb.rect, tower.rect),
     );
 
     if (hitIndex >= 0) {
       const tower = next.towers[hitIndex];
       if (tower) {
+        const impactX = Math.max(
+          tower.rect.x,
+          Math.min(next.bomb.rect.x + next.bomb.rect.width / 2, tower.rect.x + tower.rect.width),
+        );
+        const impactY = tower.rect.y;
         tower.height = 0;
         tower.rect.height = 0;
         tower.rect.y = GROUND_Y;
         tower.respawnRemaining = TOWER_RESPAWN_SECONDS;
+        emitEffect(next, "tower-explosion", impactX, impactY);
       }
       next.bomb = null;
       next.score += TOWER_SCORE;
-    } else if (next.bomb.y >= WORLD_HEIGHT) {
+      next.destroyedTowerMask |= 1 << hitIndex;
+      if (
+        !next.towerClearBonusAwarded &&
+        next.destroyedTowerMask === ALL_TOWERS_MASK
+      ) {
+        next.ship.rect.y = Math.max(SHIP_MIN_Y, next.ship.rect.y - SHIP_CLEAR_BONUS_CLIMB);
+        next.towerClearBonusAwarded = true;
+      }
+    } else if (
+      next.bomb.rect.y >= WORLD_HEIGHT ||
+      next.bomb.rect.x >= WORLD_WIDTH
+    ) {
       next.bomb = null;
     }
   }
