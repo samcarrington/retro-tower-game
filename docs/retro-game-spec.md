@@ -11,3 +11,24 @@ Simple controls, drop bombs with space bar. The ship moves automatically, the pl
 ## Game engine
 
 Built using Pixi JS.
+
+## Feature addendum — 6 September 2026
+
+The following features extend the original game:
+
+- Bombs retain the ship's forward momentum when dropped. They travel diagonally
+  down and to the right rather than falling on a fixed x-axis.
+- Destroying a building produces a short pixel-particle explosion at the point
+  of impact.
+- A ship collision or ground impact produces a distinct, larger pixel-particle
+  explosion before the game-over presentation settles.
+- Sound effects accompany bomb drops, building explosions, and player
+  explosions. Sounds are generated in the browser and require no external
+  audio assets.
+- Buildings have visibly different, independently assigned growth rates.
+  Growth is rerolled when a destroyed building respawns so the skyline's threat
+  pattern changes during a run.
+
+These additions must preserve the one-airborne-bomb rule, deterministic
+gameplay tests, fixed-step simulation, responsive 960x540 logical field, and
+keyboard-only control scheme.

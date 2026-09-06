@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101827" />
+    <title>Skyline Bomber</title>
+  </head>
+  <body>
+    <main class="page-shell">
+      <section id="game-region" class="game-shell" aria-labelledby="game-title" tabindex="-1">
+        <header class="game-header">
+          <div>
+            <p class="eyebrow">Night patrol 1984</p>
+            <h1 id="game-title">Skyline Bomber</h1>
+          </div>
+          <p class="scoreboard" aria-live="polite">Score <strong id="score">000000</strong></p>
+        </header>
+
+        <div class="screen-frame">
+          <div id="canvas-host" class="canvas-host" aria-hidden="true"></div>
+
+          <div id="start-overlay" class="overlay">
+            <div class="panel">
+              <p class="panel-kicker">Tower command</p>
+              <h2>Clear the skyline</h2>
+              <p>Your ship flies automatically. Drop one bomb at a time before the towers reach you.</p>
+              <button id="start-button" type="button">Start patrol</button>
+            </div>
+          </div>
+
+          <div id="gameover-overlay" class="overlay" hidden>
+            <div class="panel">
+              <p class="panel-kicker">Patrol ended</p>
+              <h2>Game over</h2>
+              <p id="gameover-reason"></p>
+              <button id="restart-button" type="button">Fly again</button>
+            </div>
+          </div>
+
+          <div id="paused-indicator" class="paused-indicator" hidden role="status">Paused</div>
+
+          <div id="error-overlay" class="overlay error-panel" hidden role="alert">
+            <div class="panel">
+              <p class="panel-kicker">Renderer fault</p>
+              <h2>Unable to launch</h2>
+              <p>Your browser could not start the game renderer. Try an up-to-date browser with WebGL enabled.</p>
+            </div>
+          </div>
+        </div>
+
+        <footer class="instructions">
+          <span><kbd>Space</kbd> Drop bomb</span>
+          <span>One bomb airborne</span>
+          <span>Desktop keyboard required</span>
+        </footer>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

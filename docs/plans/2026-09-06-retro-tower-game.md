@@ -86,3 +86,144 @@ Registry checks: `pixi.js@8.20.1` (PixiJS 8, no incompatible Node engine reporte
 ## Completion constraints
 
 Do not add files outside the listed paths, install unrelated dependencies, initialize or commit git, or alter approved architecture. Refer to `executing-plans` when implementing. Preserve the approved design/spec docs and local skills.
+
+---
+
+## Approved feature addendum — 6 September 2026
+
+This addendum extends the completed baseline with forward bomb momentum,
+building and player particle explosions, generated sound effects, and more
+noticeably varied tower growth. It supersedes the original straight-down bomb
+rule and the original audio exclusion. All original architecture, accessibility,
+fixed-step, lifecycle, and one-bomb constraints continue to apply.
+
+### Addendum tuning defaults
+
+- Bomb horizontal speed: capture the ship's current `180 px/sec` forward speed
+  when dropped; keep the existing `420 px/sec` downward speed.
+- Tower growth: independently select `2..10 px/sec` at initial creation and
+  every respawn. These are proposed playtest values, not new requirements.
+- Tower burst: `32` pooled square particles, `0.45s` lifetime.
+- Player burst: `64` pooled square particles, `0.9s` lifetime.
+- Audio: Web Audio API synthesis only; no audio package or external media files.
+
+## Task 7: Forward bomb momentum and effect events TDD
+
+**Files:** Modify `src/game/config.ts`, `src/game/types.ts`,
+`src/game/simulation.ts`, `tests/simulation.test.ts`.
+
+1. Replace `GameState.bomb: Rect|null` with a bomb state containing its rect and
+   velocity. Capture the ship's horizontal speed at drop time; do not read the
+   ship again during the bomb's flight.
+2. Move bombs on both axes during each fixed step. Extend swept collision to the
+   full previous-to-next bomb path so diagonal movement cannot tunnel through a
+   tower or report a hit through a horizontal gap.
+3. Add simulation-authored, monotonically identified transient effect events
+   for `bomb-drop`, `tower-explosion`, and `player-explosion`. Include logical
+   coordinates; tower events use the impact point and player events use the
+   ship centre.
+4. Preserve terminal priority: tower-limit, ground, then ship collision. A loss
+   emits exactly one player explosion, freezes gameplay, and suppresses a
+   simultaneous tower explosion and score.
+5. Clear expired/acknowledged transient events without making the renderer an
+   authority over gameplay. Restart resets the event sequence and active bomb.
+6. Tests must cover captured velocity, diagonal x/y values, diagonal swept hit,
+   diagonal miss, offscreen exit on either relevant boundary, one-bomb limit,
+   event coordinates, event uniqueness, simultaneous loss priority, terminal
+   freeze, and restart reset.
+7. Run `pnpm test tests/simulation.test.ts`, `pnpm test`, `pnpm run lint`, and
+   `pnpm run build`; all must pass.
+
+## Task 8: Varied building growth TDD
+
+**Files:** Modify `src/game/config.ts`, `src/game/simulation.ts`,
+`tests/simulation.test.ts`.
+
+1. Expand the proposed tower growth range to `2..10 px/sec`.
+2. Keep a separate growth rate per tower. Consume the deterministic random
+   source independently for every initial tower and every respawn; never share
+   a global growth rate.
+3. Reroll only the respawning tower. Other active towers retain their existing
+   rates, and inactive towers do not grow.
+4. Add a deterministic sequence-random helper in tests proving different
+   towers receive exact expected rates, a respawn receives a fresh rate, and
+   unrelated tower rates remain unchanged.
+5. Run `pnpm test tests/simulation.test.ts`, `pnpm test`, `pnpm run lint`, and
+   `pnpm run build`; all must pass.
+
+## Task 9: Pooled particle rendering
+
+**Files:** Create `src/render/particle-system.ts`,
+`tests/particle-system.test.ts`; modify `src/render/pixi-renderer.ts`.
+
+1. Implement a renderer-local particle system with fixed pools sized for one
+   player burst plus concurrent tower bursts. Construct Pixi `Graphics`
+   particles once, then reuse visibility, position, velocity, colour, scale,
+   and lifetime; do not allocate display objects per explosion or frame.
+2. Consume each simulation effect id at most once. Spawn a 32-particle amber,
+   cream, and red tower burst at tower impact coordinates and a distinct
+   64-particle cream and red ship burst at the ship centre.
+3. Advance particle animation from explicit elapsed fixed-step information,
+   not wall-clock time inside the renderer. Pause/focus loss therefore freezes
+   effects with the game and restart clears the pool.
+4. Seed or inject particle randomness in tests so spawn counts, origins,
+   lifetimes, pool reuse, expiry, and duplicate-event suppression are exact.
+   Keep Pixi/WebGL initialization out of Node tests by testing pool state
+   separately from display-object binding.
+5. Update `destroy()` to release all particle containers and pooled graphics.
+6. Run `pnpm test tests/particle-system.test.ts`, `pnpm test`,
+   `pnpm run lint`, and `pnpm run build`; all must pass.
+
+## Task 10: Generated sound effects and session integration
+
+**Files:** Create `src/browser/audio.ts`, `tests/audio.test.ts`; modify
+`src/browser/session.ts`, `src/main.ts`, `index.html`, `src/style.css`,
+`tests/session.test.ts`.
+
+1. Define a narrow audio interface with `resume()`, `play(effect)`, and
+   `destroy()`. Inject it into session tests; never instantiate AudioContext in
+   jsdom.
+2. Implement short Web Audio API synthesized effects with distinct envelopes:
+   a descending bomb chirp, noisy low tower burst, and longer lower player
+   burst. Use oscillators/noise buffers and gain ramps; add no dependency or
+   external sound file.
+3. Create or resume audio only from Start/Restart and gameplay Space gestures.
+   Route each simulation effect id to audio once, including when render is
+   called repeatedly without a simulation step.
+4. If Web Audio is unavailable or cannot resume, keep the game playable and
+   expose a concise non-blocking audio-unavailable status in the existing
+   shell. Do not turn an audio failure into renderer failure.
+5. Dispose AudioContext and pending nodes during session disposal/HMR.
+6. Tests must cover gesture resume, one sound per unique event, no duplicate
+   sound on repeated render, distinct effect routing, unavailable-audio
+   presentation, restart reuse, and disposal.
+7. Run `pnpm test tests/audio.test.ts tests/session.test.ts`, `pnpm test`,
+   `pnpm run lint`, and `pnpm run build`; all must pass.
+
+## Task 11: Addendum browser verification and documentation
+
+**Files:** Modify `README.md`.
+
+1. Document diagonal bomb motion, particle effects, generated audio, browser
+   autoplay behaviour, and the newly widened tower-growth tuning range.
+2. Run individually: `pnpm test`, `pnpm run lint`, `pnpm run build`,
+   `pnpm run dev`, and `pnpm run preview`.
+3. Browser-smoke bomb x/y movement, one-bomb enforcement, tower burst, player
+   burst, all three sounds, focus/visibility freeze, game-over reason, fresh
+   restart, and absence of console errors.
+4. Verify effects and layout at 1280x800 and 640x800. Confirm audio begins only
+   after a user gesture and that unavailable/blocked audio does not prevent play.
+5. Run a sustained automated or manual session with repeated tower
+   destructions. Confirm display-object counts stay bounded and expired
+   particles return to the pool.
+6. Record that final sound balance, particle feel, and growth range remain
+   human-playtest tuning. Report any changed constants rather than presenting
+   them as newly approved requirements.
+
+## Addendum completion constraints
+
+The addendum may add only `src/render/particle-system.ts`,
+`src/browser/audio.ts`, `tests/particle-system.test.ts`, and
+`tests/audio.test.ts`, plus modifications to the existing files named above.
+Do not add audio/image assets, runtime dependencies, mobile controls, a
+framework, production debug globals, or renderer-owned gameplay decisions.
