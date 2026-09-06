@@ -24,7 +24,7 @@
             <div class="panel">
               <p class="panel-kicker">Tower command</p>
               <h2>Clear the skyline</h2>
-              <p>Your ship flies automatically. Drop one bomb at a time before the towers reach you.</p>
+              <p>Your ship flies automatically. Drop bombs, earn boost charges, and keep the towers down.</p>
               <button id="start-button" type="button">Start patrol</button>
             </div>
           </div>
@@ -49,8 +49,16 @@
           </div>
         </div>
 
+        <section class="high-scores" aria-labelledby="high-score-title">
+          <h2 id="high-score-title">Patrol records</h2>
+          <ol id="high-score-list">
+            <li class="empty-score">No completed patrols</li>
+          </ol>
+        </section>
+
         <footer class="instructions">
           <span><kbd>Space</kbd> Drop bomb</span>
+          <span><kbd>B</kbd> Boost jet ×<strong id="boost-count">0</strong></span>
           <span>One bomb airborne</span>
           <span id="audio-status" class="audio-status" hidden></span>
           <span>Desktop keyboard required</span>

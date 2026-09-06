@@ -17,10 +17,15 @@ pnpm run dev
 
 Open the local URL printed by Vite. Press **Start patrol**, then use **Space** to drop a bomb. Bombs continue moving forwards as they fall. The ship flies and descends automatically, while towers grow at independently changing rates. Tower and player destruction use generated pixel-particle bursts and synthesized browser audio. After a game over, choose **Fly again** for a fresh run.
 
-Sound begins only after a Start, Restart, or Space gesture because browsers block automatic audio. If Web Audio is unavailable, the game remains playable and shows a small status message.
+Sound begins only after a Start, Restart, Space, or B gesture because browsers block automatic audio. If Web Audio is unavailable, the game remains playable and shows a small status message.
 
 The entire game field is rendered through a subtle CRT effect with curved glass,
 scanlines, animated analogue noise, and edge darkening.
+
+Every 25 destroyed towers earns a boost-jet charge. Hold up to three and press
+**B** to fire one, climb smoothly, and buy more survival time. The patrol-record
+table keeps the best five scores for the current page session and clears on
+reload.
 
 ## Checks
 

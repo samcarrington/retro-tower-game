@@ -1,7 +1,8 @@
 import { FixedStepClock } from "./clock";
 import { createBrowserAudio, type GameAudio } from "./audio";
 import { bindGameInput } from "./input";
-import { createGame, dropBomb, startGame, stepGame } from "../game/simulation";
+import { recordHighScore, type HighScoreEntry } from "./high-scores";
+import { createGame, dropBomb, startGame, stepGame, useBoost } from "../game/simulation";
 import type { GameOverReason, GameState } from "../game/types";
 
 export interface GameRenderer {
@@ -13,6 +14,8 @@ export interface GameElements {
   region: HTMLElement;
   canvasHost: HTMLElement;
   score: HTMLElement;
+  boostCount: HTMLElement;
+  highScoreList: HTMLOListElement;
   startOverlay: HTMLElement;
   startButton: HTMLButtonElement;
   gameoverOverlay: HTMLElement;
@@ -62,6 +65,7 @@ export async function createGameSession(
   let audioActivation: Promise<void> | null = null;
   let audioRunId = state.runId;
   let lastAudioEffectId = 0;
+  let highScores: HighScoreEntry[] = [];
 
   try {
     renderer = await dependencies.createRenderer(elements.canvasHost);
@@ -115,9 +119,26 @@ export async function createGameSession(
   };
 
   const updatePresentation = (frameSeconds = 0): void => {
+    if (state.status === "gameover") {
+      const updatedScores = recordHighScore(highScores, {
+        runId: state.runId,
+        score: state.score,
+      });
+      if (updatedScores !== highScores) {
+        highScores = updatedScores;
+        elements.highScoreList.replaceChildren(
+          ...highScores.map((entry) => {
+            const item = doc.createElement("li");
+            item.textContent = entry.score.toString().padStart(6, "0");
+            return item;
+          }),
+        );
+      }
+    }
     renderer.render(state, frameSeconds);
     routeAudio();
     elements.score.textContent = state.score.toString().padStart(6, "0");
+    elements.boostCount.textContent = state.boostCharges.toString();
     elements.startOverlay.hidden = state.status !== "ready";
     elements.gameoverOverlay.hidden = state.status !== "gameover";
     elements.gameoverReason.textContent =
@@ -145,6 +166,11 @@ export async function createGameSession(
     dropBomb: () => {
       void enableAudio();
       state = dropBomb(state);
+      updatePresentation();
+    },
+    useBoost: () => {
+      void enableAudio();
+      state = useBoost(state);
       updatePresentation();
     },
   });

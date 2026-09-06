@@ -5,9 +5,13 @@ import {
   BOMB_HORIZONTAL_DRAG,
   BOMB_SPEED,
   BOMB_WIDTH,
+  BOOST_EARN_INTERVAL,
   DANGER_Y,
   GROUND_Y,
+  MAX_BOOST_CHARGES,
   MAX_EFFECT_EVENTS,
+  SHIP_BOOST_CLIMB,
+  SHIP_BOOST_SPEED,
   SHIP_CLEAR_BONUS_CLIMB,
   SHIP_DESCENT_PER_LAP,
   SHIP_HEIGHT,
@@ -64,7 +68,11 @@ function createTower(index: number, random: RandomSource): TowerState {
 function cloneState(state: GameState): GameState {
   return {
     ...state,
-    ship: { rect: { ...state.ship.rect }, laps: state.ship.laps },
+    ship: {
+      rect: { ...state.ship.rect },
+      laps: state.ship.laps,
+      climbRemaining: state.ship.climbRemaining,
+    },
     bomb: state.bomb
       ? { ...state.bomb, rect: { ...state.bomb.rect } }
       : null,
@@ -163,11 +171,14 @@ export function createGame(random: RandomSource = Math.random): GameState {
         height: SHIP_HEIGHT,
       },
       laps: 0,
+      climbRemaining: 0,
     },
     bomb: null,
     towers: Array.from({ length: TOWER_COUNT }, (_, index) => createTower(index, random)),
     destroyedTowerMask: 0,
+    destroyedTowerCount: 0,
     towerClearBonusAwarded: false,
+    boostCharges: 0,
     effects: [],
     nextEffectId: 1,
     reason: null,
@@ -199,6 +210,30 @@ export function dropBomb(state: GameState): GameState {
     "bomb-drop",
     next.bomb.rect.x + next.bomb.rect.width / 2,
     next.bomb.rect.y + next.bomb.rect.height / 2,
+  );
+  return next;
+}
+
+export function useBoost(state: GameState): GameState {
+  if (
+    state.status !== "playing" ||
+    state.boostCharges <= 0 ||
+    state.ship.climbRemaining >= state.ship.rect.y - SHIP_MIN_Y
+  ) {
+    return state;
+  }
+
+  const next = cloneState(state);
+  next.boostCharges -= 1;
+  next.ship.climbRemaining = Math.min(
+    next.ship.rect.y - SHIP_MIN_Y,
+    next.ship.climbRemaining + SHIP_BOOST_CLIMB,
+  );
+  emitEffect(
+    next,
+    "boost-jet",
+    next.ship.rect.x,
+    next.ship.rect.y + next.ship.rect.height / 2,
   );
   return next;
 }
@@ -241,6 +276,19 @@ export function stepGame(
     next.ship.rect.x = -SHIP_WIDTH;
     next.ship.rect.y += SHIP_DESCENT_PER_LAP;
     next.ship.laps += 1;
+  }
+  if (next.ship.climbRemaining > 0 && next.ship.rect.y > SHIP_MIN_Y) {
+    const climb = Math.min(
+      next.ship.climbRemaining,
+      SHIP_BOOST_SPEED * dtSeconds,
+      next.ship.rect.y - SHIP_MIN_Y,
+    );
+    next.ship.rect.y -= climb;
+    next.ship.climbRemaining -= climb;
+    if (next.ship.rect.y <= SHIP_MIN_Y || next.ship.climbRemaining < 1e-9) {
+      next.ship.rect.y = Math.max(SHIP_MIN_Y, next.ship.rect.y);
+      next.ship.climbRemaining = 0;
+    }
   }
 
   if (next.towers.some((tower) => tower.respawnRemaining === 0 && tower.height >= TOWER_HEIGHT_CAP)) {
@@ -289,13 +337,29 @@ export function stepGame(
       }
       next.bomb = null;
       next.score += TOWER_SCORE;
+      next.destroyedTowerCount += 1;
+      if (
+        next.destroyedTowerCount % BOOST_EARN_INTERVAL === 0 &&
+        next.boostCharges < MAX_BOOST_CHARGES
+      ) {
+        next.boostCharges += 1;
+      }
       next.destroyedTowerMask |= 1 << hitIndex;
       if (
         !next.towerClearBonusAwarded &&
         next.destroyedTowerMask === ALL_TOWERS_MASK
       ) {
-        next.ship.rect.y = Math.max(SHIP_MIN_Y, next.ship.rect.y - SHIP_CLEAR_BONUS_CLIMB);
+        next.ship.climbRemaining = Math.min(
+          next.ship.rect.y - SHIP_MIN_Y,
+          next.ship.climbRemaining + SHIP_CLEAR_BONUS_CLIMB,
+        );
         next.towerClearBonusAwarded = true;
+        emitEffect(
+          next,
+          "all-towers-bonus",
+          next.ship.rect.x + next.ship.rect.width / 2,
+          next.ship.rect.y + next.ship.rect.height / 2,
+        );
       }
     } else if (
       next.bomb.rect.y >= WORLD_HEIGHT ||

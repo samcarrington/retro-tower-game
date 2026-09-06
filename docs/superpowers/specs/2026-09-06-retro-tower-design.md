@@ -29,8 +29,13 @@
 - Give towers independently randomized growth rates on initial creation and
   reroll the rate after each respawn.
 - Secretly track distinct tower positions destroyed during a run. Destroying
-  all nine positions at least once awards one immediate upward ship movement;
-  the bonus can occur only once per run.
+  all nine positions at least once awards one animated upward ship movement and
+  a dedicated sound; the bonus can occur only once per run.
+- Keep a top-five leaderboard in browser-session memory only. Record each
+  completed run once, retain it across restarts, and clear it on page reload.
+- Award one manually fired boost charge after every 25 tower destructions.
+  Inventory caps at three; B consumes one available charge and queues an
+  animated climb with generated sound and pooled exhaust particles.
 
 ## Approach/architecture
 
@@ -52,8 +57,8 @@
 ## Lifecycle/input
 
 - Start screen transitions into a new score-chasing run.
-- During a run, only a non-repeating Space keydown controls bombing; ship
-  movement is automatic.
+- During a run, non-repeating Space controls bombing and non-repeating B fires
+  an earned boost; horizontal ship movement is automatic.
 - Bomb state permits one airborne bomb. A hit or off-screen exit clears that
   allowance. Its horizontal velocity is captured from the ship when dropped and
   decays during flight while its vertical velocity accelerates downwards.
@@ -62,12 +67,20 @@
 - Tower-clear progress is based on unique tower positions, persists through
   their respawns, and resets only on a fresh run. Repeatedly destroying the
   same position does not advance the unique-clear count.
-- The ninth distinct destruction applies the climb in the same simulation
-  transition as the hit, after the normal score award. It does not cancel an
-  already determined terminal loss.
+- The ninth distinct destruction queues a climb after the normal score award.
+  Progress resets with the run, so repeated hits or cross-run clears cannot
+  qualify. It does not cancel an already determined terminal loss.
+- The simulation consumes queued climb distance at a fixed rate so both reward
+  types move visibly over multiple frames and remain aligned with collision
+  state. Consecutive boosts may queue additional distance.
+- Every 25th destruction adds a charge only when fewer than three are held.
+  Excess rewards are not banked. A charge cannot be wasted while the ship is
+  already at, or has queued enough climb to reach, minimum altitude.
 - Game over records and displays its reason: tower reached line, ship touched
   tower, or ship reached ground.
 - Restart creates a fresh run and resets score and entities.
+- Game over inserts the run score into the page-lifetime top five exactly once.
+  Restart does not clear the table; reload does.
 - Losing tab focus freezes the simulation. Returning focus resumes from the
   frozen state with no elapsed-time catch-up.
 - Renderer initialization is asynchronous; failure presents a clear user-facing
@@ -81,8 +94,9 @@
   the browser viewport.
 - Keep gameplay positions and collision coordinates in the logical field.
 - Place nine stationary towers across the field; each tower grows independently.
-- Show the ship, bomb, towers, maximum-height line, score HUD, start screen,
-  game-over reason, and restart control.
+- Show the ship, bomb, towers, maximum-height line, score HUD, held boost count,
+  page-lifetime high-score table, start screen, game-over reason, and restart
+  control.
 - Use generated pixel shapes in style A: navy sky, amber towers, cream ship,
   and red danger line. No external artwork.
 - Tower explosions use brief amber, cream, and red square particles centred on
@@ -113,8 +127,12 @@
 - Test independent growth-rate assignment and fresh rate randomization on
   respawn using a deterministic random sequence.
 - Test unique tower-clear tracking, duplicate-position suppression, one-time
-  activation on the ninth distinct tower, climb bounds, terminal-loss priority,
-  and reset on restart.
+  activation on the ninth distinct tower, reward sound event, animated climb
+  bounds, terminal-loss priority, and reset on restart.
+- Test 25-destruction earning, three-charge cap, manual B activation, animated
+  climb, no-waste altitude guard, generated sound, and bounded jet exhaust.
+- Test top-five sorting, once-per-run insertion, restart retention, and absence
+  of permanent storage.
 - Test maximum-height, ship/tower, and ship/ground loss conditions.
 - Test restart resets score and entities.
 - Test focus loss freezes and focus return resumes without catch-up.
@@ -131,13 +149,13 @@
 Excluded from approved scope:
 
 - Mobile controls
-- Power-ups
 - Online scores
 - Framework wrapper
 - External artwork
 
-The original straight-down bomb requirement and audio exclusion are superseded
-by the feature addendum approved on 6 September 2026.
+The original straight-down bomb requirement, audio exclusion, and blanket
+power-up exclusion are superseded by feature addenda approved on 6 September
+2026.
 
 The tower-clear climb is intentionally undisclosed in player-facing
 instructions and documentation. Its exact climb distance is a playtest tuning

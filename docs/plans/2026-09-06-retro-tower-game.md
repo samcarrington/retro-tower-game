@@ -294,3 +294,51 @@ modify `src/render/pixi-renderer.ts`, `README.md`.
 
 The addendum completion constraints now also permit
 `src/render/crt-filter.ts` and `tests/crt-filter.test.ts`.
+
+## Task 14: Page-lifetime high-score table
+
+**Files:** Create `src/browser/high-scores.ts`, `tests/high-scores.test.ts`;
+modify `index.html`, `src/main.ts`, `src/style.css`, `src/browser/session.ts`,
+and `tests/session.test.ts`.
+
+1. Keep a sorted top-five list in `GameSession` memory only. Do not use
+   `localStorage`, `sessionStorage`, cookies, IndexedDB, or a remote service.
+2. Record each terminal run exactly once by run ID, including zero-point runs.
+   Preserve scores across in-page restarts; a page reload naturally clears them.
+3. Render an accessible numbered patrol-record list below the game field and
+   verify duplicate renders do not duplicate an entry.
+
+## Task 15: Distinct all-towers reward sound
+
+**Files:** Modify `src/game/types.ts`, `src/game/simulation.ts`,
+`src/browser/audio.ts`, `tests/simulation.test.ts`, and `tests/audio.test.ts`.
+
+1. Emit `all-towers-bonus` only when the nine-bit distinct-position mask becomes
+   complete during the current run.
+2. Reset the mask on restart. Test nine repeated hits and an eight-plus-one
+   cross-run split to prove neither qualifies.
+3. Synthesize a bright three-note square-wave reward sound without external
+   assets. Terminal loss retains priority over the hit and reward.
+
+## Task 16: Earned manual boost jet
+
+**Files:** Modify `src/game/config.ts`, `src/game/types.ts`,
+`src/game/simulation.ts`, `src/browser/input.ts`, `src/browser/session.ts`,
+`src/render/particle-system.ts`, `src/browser/audio.ts`, `index.html`,
+`tests/simulation.test.ts`, `tests/input.test.ts`,
+`tests/particle-system.test.ts`, and `tests/audio.test.ts`.
+
+1. Count all tower destructions within a run. Each multiple of 25 adds one held
+   charge when inventory is below the cap of three; excess rewards are lost.
+2. Show the charge count and bind non-repeating `B` to manual activation.
+3. Firing consumes one charge, queues 32px of climb, emits `boost-jet`, and is
+   blocked when the current/queued climb already reaches `y=16`.
+4. Consume queued climb at `96 px/sec` in fixed-step simulation for visible,
+   deterministic motion. The all-nine reward uses the same queue.
+5. Render a 24-particle amber/cream exhaust burst and synthesize a short rising
+   sawtooth jet sound. Keep particle capacity bounded.
+6. Verify earning, cap, manual input, animation, pause consistency, sound,
+   particles, restart reset, and responsive UI.
+
+These tasks additionally permit `src/browser/high-scores.ts` and
+`tests/high-scores.test.ts`; they add no storage, assets, or dependencies.

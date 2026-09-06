@@ -37,6 +37,14 @@ const PLAYER_BURST: BurstStyle = {
   colours: [COLOURS.cream, COLOURS.red],
 };
 
+const BOOST_BURST: BurstStyle = {
+  count: 24,
+  lifetime: 0.5,
+  minimumSpeed: 90,
+  maximumSpeed: 220,
+  colours: [COLOURS.amber, COLOURS.cream],
+};
+
 const GRAVITY = 180;
 
 export class ParticleSystem {
@@ -75,6 +83,8 @@ export class ParticleSystem {
         this.spawn(effect.x, effect.y, TOWER_BURST);
       } else if (effect.type === "player-explosion") {
         this.spawn(effect.x, effect.y, PLAYER_BURST);
+      } else if (effect.type === "boost-jet") {
+        this.spawnJet(effect.x, effect.y);
       }
       this.lastEffectId = effect.id;
     }
@@ -122,6 +132,30 @@ export class ParticleSystem {
       particle.lifetime = style.lifetime;
       particle.colour = style.colours[colourIndex] ?? COLOURS.cream;
       particle.size = 3 + Math.floor(this.random() * 4);
+    }
+  }
+
+  private spawnJet(x: number, y: number): void {
+    for (let index = 0; index < BOOST_BURST.count; index += 1) {
+      const particle = this.acquireParticle();
+      const angle = Math.PI * 0.75 + (this.random() - 0.5) * 0.7;
+      const speed =
+        BOOST_BURST.minimumSpeed +
+        this.random() * (BOOST_BURST.maximumSpeed - BOOST_BURST.minimumSpeed);
+      const colourIndex = Math.min(
+        BOOST_BURST.colours.length - 1,
+        Math.floor(this.random() * BOOST_BURST.colours.length),
+      );
+
+      particle.active = true;
+      particle.x = x;
+      particle.y = y;
+      particle.velocityX = Math.cos(angle) * speed;
+      particle.velocityY = Math.sin(angle) * speed;
+      particle.age = 0;
+      particle.lifetime = BOOST_BURST.lifetime;
+      particle.colour = BOOST_BURST.colours[colourIndex] ?? COLOURS.cream;
+      particle.size = 3 + Math.floor(this.random() * 3);
     }
   }
 

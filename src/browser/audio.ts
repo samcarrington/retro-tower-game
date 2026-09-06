@@ -71,6 +71,34 @@ function playExplosion(context: AudioContext, player: boolean): void {
   }
 }
 
+function playAllTowersBonus(context: AudioContext): void {
+  const now = context.currentTime;
+  for (const [index, frequency] of [660, 880, 1320].entries()) {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const start = now + index * 0.08;
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(frequency, start);
+    shapeGain(gain.gain, start, 0.07, 0.12);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + 0.13);
+  }
+}
+
+function playBoostJet(context: AudioContext): void {
+  const now = context.currentTime;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = "sawtooth";
+  oscillator.frequency.setValueAtTime(90, now);
+  oscillator.frequency.exponentialRampToValueAtTime(260, now + 0.3);
+  shapeGain(gain.gain, now, 0.1, 0.32);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.33);
+}
+
 export function createBrowserAudio(
   factory: AudioContextFactory = defaultAudioContextFactory,
 ): GameAudio {
@@ -87,8 +115,12 @@ export function createBrowserAudio(
       if (!context || context.state !== "running") return;
       if (effect === "bomb-drop") {
         playBombDrop(context);
-      } else {
+      } else if (effect === "tower-explosion" || effect === "player-explosion") {
         playExplosion(context, effect === "player-explosion");
+      } else if (effect === "all-towers-bonus") {
+        playAllTowersBonus(context);
+      } else {
+        playBoostJet(context);
       }
     },
     destroy: async () => {

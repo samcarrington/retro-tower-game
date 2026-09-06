@@ -11,6 +11,7 @@ import type { GameState } from "../src/game/types";
 function createElements(): GameElements {
   document.body.innerHTML = `
     <main id="region" tabindex="-1"></main><div id="host"></div><span id="score"></span>
+    <span id="boost"></span><ol id="high-scores"><li>No completed patrols</li></ol>
     <div id="start"><button id="start-button"></button></div>
     <div id="gameover" hidden><span id="reason"></span><button id="restart"></button></div>
     <div id="paused" hidden></div><div id="audio" hidden></div><div id="error" hidden></div>
@@ -19,6 +20,8 @@ function createElements(): GameElements {
     region: document.querySelector("#region")!,
     canvasHost: document.querySelector("#host")!,
     score: document.querySelector("#score")!,
+    boostCount: document.querySelector("#boost")!,
+    highScoreList: document.querySelector("#high-scores")!,
     startOverlay: document.querySelector("#start")!,
     startButton: document.querySelector("#start-button")!,
     gameoverOverlay: document.querySelector("#gameover")!,
@@ -158,6 +161,10 @@ describe("game session", () => {
     expect(session.getState().status).toBe("gameover");
     expect(elements.gameoverOverlay.hidden).toBe(false);
     expect(elements.gameoverReason.textContent).not.toBe("");
+    expect(elements.highScoreList.children).toHaveLength(1);
+    expect(elements.highScoreList.textContent).toContain("000000");
+    harness.render();
+    expect(elements.highScoreList.children).toHaveLength(1);
 
     const renderCount = render.mock.calls.length;
     elements.restartButton.click();
@@ -168,6 +175,8 @@ describe("game session", () => {
       bomb: null,
     });
     expect(render.mock.calls.length).toBeGreaterThan(renderCount);
+    expect(elements.highScoreList.children).toHaveLength(1);
+    expect(elements.highScoreList.textContent).toContain("000000");
     session.dispose();
   });
 

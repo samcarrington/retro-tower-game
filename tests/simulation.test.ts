@@ -7,6 +7,9 @@ import {
   BOMB_SPEED,
   BOMB_WIDTH,
   GROUND_Y,
+  MAX_BOOST_CHARGES,
+  SHIP_BOOST_CLIMB,
+  SHIP_BOOST_SPEED,
   SHIP_HEIGHT,
   SHIP_MIN_Y,
   SHIP_CLEAR_BONUS_CLIMB,
@@ -15,7 +18,13 @@ import {
   TOWER_RESPAWN_SECONDS,
   WORLD_HEIGHT,
 } from "../src/game/config";
-import { createGame, dropBomb, startGame, stepGame } from "../src/game/simulation";
+import {
+  createGame,
+  dropBomb,
+  startGame,
+  stepGame,
+  useBoost,
+} from "../src/game/simulation";
 import type { GameState } from "../src/game/types";
 
 const fixedRandom = (value: number) => () => value;
@@ -28,6 +37,20 @@ function towerAt(state: GameState, index: number) {
   const tower = state.towers[index];
   if (!tower) throw new Error(`Missing tower ${index}`);
   return tower;
+}
+
+function hitTower(state: GameState, index: number): GameState {
+  const tower = towerAt(state, index);
+  tower.height = 40;
+  tower.rect.height = 40;
+  tower.rect.y = GROUND_Y - 40;
+  tower.respawnRemaining = 0;
+  state.bomb = {
+    rect: { x: tower.rect.x, y: tower.rect.y - BOMB_HEIGHT, width: 6, height: 12 },
+    velocityX: 0,
+    velocityY: BOMB_SPEED,
+  };
+  return stepGame(state, 0.001);
 }
 
 describe("simulation", () => {
@@ -58,7 +81,9 @@ describe("simulation", () => {
       reason: null,
       bomb: null,
       destroyedTowerMask: 0,
+      destroyedTowerCount: 0,
       towerClearBonusAwarded: false,
+      boostCharges: 0,
       effects: [],
       nextEffectId: 1,
     });
@@ -235,51 +260,84 @@ describe("simulation", () => {
     state.ship.rect.y = 120;
 
     for (let towerIndex = 0; towerIndex < 9; towerIndex += 1) {
-      const tower = towerAt(state, towerIndex);
-      tower.height = 40;
-      tower.rect.height = 40;
-      tower.rect.y = GROUND_Y - 40;
-      tower.respawnRemaining = 0;
-      state.bomb = {
-        rect: { x: tower.rect.x, y: tower.rect.y - BOMB_HEIGHT, width: 6, height: 12 },
-        velocityX: 0,
-        velocityY: BOMB_SPEED,
-      };
-      state = stepGame(state, 0.001);
+      state = hitTower(state, towerIndex);
     }
 
     expect(state.destroyedTowerMask).toBe(0b111111111);
     expect(state.towerClearBonusAwarded).toBe(true);
-    expect(state.ship.rect.y).toBe(120 - SHIP_CLEAR_BONUS_CLIMB);
+    expect(state.ship.rect.y).toBe(120);
+    expect(state.ship.climbRemaining).toBe(SHIP_CLEAR_BONUS_CLIMB);
+    expect(state.effects.at(-1)?.type).toBe("all-towers-bonus");
 
-    const first = towerAt(state, 0);
-    first.height = 40;
-    first.rect.height = 40;
-    first.rect.y = GROUND_Y - 40;
-    first.respawnRemaining = 0;
-    state.bomb = {
-      rect: { x: first.rect.x, y: first.rect.y - BOMB_HEIGHT, width: 6, height: 12 },
-      velocityX: 0,
-      velocityY: BOMB_SPEED,
-    };
-    const repeated = stepGame(state, 0.001);
+    state = stepGame(state, SHIP_CLEAR_BONUS_CLIMB / SHIP_BOOST_SPEED);
+    expect(state.ship.rect.y).toBe(120 - SHIP_CLEAR_BONUS_CLIMB);
+    expect(state.ship.climbRemaining).toBe(0);
+
+    const repeated = hitTower(state, 0);
     expect(repeated.ship.rect.y).toBe(120 - SHIP_CLEAR_BONUS_CLIMB);
+    expect(repeated.ship.climbRemaining).toBe(0);
   });
 
   it("clamps the secret climb to the minimum ship height", () => {
     const state = playing();
     state.ship.rect.y = SHIP_MIN_Y + 4;
     state.destroyedTowerMask = 0b011111111;
-    const tower = towerAt(state, 8);
-    tower.height = 40;
-    tower.rect.height = 40;
-    tower.rect.y = GROUND_Y - 40;
-    state.bomb = {
-      rect: { x: tower.rect.x, y: tower.rect.y - BOMB_HEIGHT, width: 6, height: 12 },
-      velocityX: 0,
-      velocityY: BOMB_SPEED,
-    };
-    expect(stepGame(state, 0.001).ship.rect.y).toBe(SHIP_MIN_Y);
+    const awarded = hitTower(state, 8);
+    expect(awarded.ship.climbRemaining).toBe(4);
+    expect(stepGame(awarded, 0.1).ship.rect.y).toBe(SHIP_MIN_Y);
+  });
+
+  it("requires all nine distinct tower positions within the same run", () => {
+    let repeated = playing();
+    for (let hit = 0; hit < 9; hit += 1) {
+      repeated = hitTower(repeated, 0);
+    }
+    expect(repeated.destroyedTowerCount).toBe(9);
+    expect(repeated.destroyedTowerMask).toBe(1);
+    expect(repeated.towerClearBonusAwarded).toBe(false);
+    expect(repeated.effects.some((effect) => effect.type === "all-towers-bonus")).toBe(false);
+
+    let splitAcrossRuns = playing();
+    for (let towerIndex = 0; towerIndex < 8; towerIndex += 1) {
+      splitAcrossRuns = hitTower(splitAcrossRuns, towerIndex);
+    }
+    splitAcrossRuns = startGame(splitAcrossRuns, fixedRandom(0));
+    splitAcrossRuns = hitTower(splitAcrossRuns, 8);
+    expect(splitAcrossRuns.destroyedTowerMask).toBe(1 << 8);
+    expect(splitAcrossRuns.towerClearBonusAwarded).toBe(false);
+  });
+
+  it("earns a held boost every 25 towers and animates it only when fired", () => {
+    let state = playing();
+    state.ship.rect.y = 120;
+    state.destroyedTowerCount = 24;
+    state = hitTower(state, 0);
+    expect(state.destroyedTowerCount).toBe(25);
+    expect(state.boostCharges).toBe(1);
+    expect(state.ship.rect.y).toBe(120);
+    expect(state.ship.climbRemaining).toBe(0);
+
+    const fired = useBoost(state);
+    expect(fired.boostCharges).toBe(0);
+    expect(fired.ship.rect.y).toBe(120);
+    expect(fired.ship.climbRemaining).toBe(SHIP_BOOST_CLIMB);
+    expect(fired.effects.at(-1)?.type).toBe("boost-jet");
+
+    const animated = stepGame(fired, SHIP_BOOST_CLIMB / SHIP_BOOST_SPEED);
+    expect(animated.ship.rect.y).toBe(120 - SHIP_BOOST_CLIMB);
+    expect(animated.ship.climbRemaining).toBe(0);
+  });
+
+  it("caps held boosts at three and does not waste one at maximum altitude", () => {
+    let state = playing();
+    state.destroyedTowerCount = 74;
+    state.boostCharges = MAX_BOOST_CHARGES;
+    state = hitTower(state, 0);
+    expect(state.destroyedTowerCount).toBe(75);
+    expect(state.boostCharges).toBe(MAX_BOOST_CHARGES);
+
+    state.ship.rect.y = SHIP_MIN_Y;
+    expect(useBoost(state)).toBe(state);
   });
 
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(

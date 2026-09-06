@@ -14,6 +14,8 @@ const elements: GameElements = {
   region: requireElement("game-region"),
   canvasHost: requireElement("canvas-host"),
   score: requireElement("score"),
+  boostCount: requireElement("boost-count"),
+  highScoreList: requireElement<HTMLOListElement>("high-score-list"),
   startOverlay: requireElement("start-overlay"),
   startButton: requireElement<HTMLButtonElement>("start-button"),
   gameoverOverlay: requireElement("gameover-overlay"),

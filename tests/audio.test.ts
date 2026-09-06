@@ -65,6 +65,12 @@ describe("browser audio", () => {
     expect(fake.context.createBufferSource).toHaveBeenCalledTimes(2);
     expect(fake.context.createOscillator).toHaveBeenCalledTimes(2);
 
+    audio.play("all-towers-bonus");
+    expect(fake.context.createOscillator).toHaveBeenCalledTimes(5);
+
+    audio.play("boost-jet");
+    expect(fake.context.createOscillator).toHaveBeenCalledTimes(6);
+
     await audio.destroy();
     expect(fake.context.close).toHaveBeenCalledOnce();
   });

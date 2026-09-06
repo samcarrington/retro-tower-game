@@ -48,4 +48,14 @@ describe("ParticleSystem", () => {
     particles.sync(2, 0, [towerEffect]);
     expect(particles.particles.filter((particle) => particle.active)).toHaveLength(32);
   });
+
+  it("spawns bounded directional exhaust for a boost jet", () => {
+    const particles = new ParticleSystem(128, () => 0.5);
+    particles.sync(1, 0, [{ id: 1, type: "boost-jet", x: 80, y: 60 }]);
+    const active = particles.particles.filter((particle) => particle.active);
+    expect(active).toHaveLength(24);
+    expect(active[0]).toMatchObject({ x: 80, y: 60, lifetime: 0.5 });
+    expect(active[0]?.velocityX).toBeLessThan(0);
+    expect(active[0]?.velocityY).toBeGreaterThan(0);
+  });
 });

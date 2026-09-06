@@ -176,6 +176,40 @@ button:focus-visible {
   text-transform: uppercase;
 }
 
+.high-scores {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-top: 1rem;
+  color: #bac2d0;
+  text-transform: uppercase;
+}
+
+.high-scores h2 {
+  flex: 0 0 auto;
+  margin: 0;
+  color: #e8a443;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+}
+
+.high-scores ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1.8rem;
+  margin: 0;
+  padding-left: 2rem;
+  font-size: 0.85rem;
+}
+
+.high-scores li::marker {
+  color: #e8a443;
+}
+
+.high-scores .empty-score {
+  list-style: none;
+}
+
 .audio-status {
   color: #e8a443;
 }
@@ -198,5 +232,10 @@ kbd {
 
   .instructions {
     justify-content: center;
+  }
+
+  .high-scores {
+    align-items: center;
+    flex-direction: column;
   }
 }

@@ -11,6 +11,7 @@ export type GameOverReason = "tower-limit" | "ship-collision" | "ground" | null;
 export interface ShipState {
   rect: Rect;
   laps: number;
+  climbRemaining: number;
 }
 
 export interface TowerState {
@@ -26,7 +27,12 @@ export interface BombState {
   velocityY: number;
 }
 
-export type GameEffectType = "bomb-drop" | "tower-explosion" | "player-explosion";
+export type GameEffectType =
+  | "bomb-drop"
+  | "tower-explosion"
+  | "player-explosion"
+  | "all-towers-bonus"
+  | "boost-jet";
 
 export interface GameEffect {
   id: number;
@@ -44,7 +50,9 @@ export interface GameState {
   bomb: BombState | null;
   towers: TowerState[];
   destroyedTowerMask: number;
+  destroyedTowerCount: number;
   towerClearBonusAwarded: boolean;
+  boostCharges: number;
   effects: GameEffect[];
   nextEffectId: number;
   reason: GameOverReason;

@@ -3,6 +3,7 @@ export interface GameInputOptions {
   window: Window;
   isPlaying: () => boolean;
   dropBomb: () => void;
+  useBoost: () => void;
 }
 
 export interface GameInput {
@@ -12,26 +13,37 @@ export interface GameInput {
 
 export function bindGameInput(options: GameInputOptions): GameInput {
   let spaceHeld = false;
+  let boostHeld = false;
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.code !== "Space") return;
+    if (event.code !== "Space" && event.code !== "KeyB") return;
     if (event.target instanceof HTMLButtonElement) return;
     if (!options.isPlaying()) return;
 
     event.preventDefault();
-    if (event.repeat || spaceHeld) return;
-    spaceHeld = true;
-    options.dropBomb();
+    if (event.repeat) return;
+    if (event.code === "Space") {
+      if (spaceHeld) return;
+      spaceHeld = true;
+      options.dropBomb();
+    } else {
+      if (boostHeld) return;
+      boostHeld = true;
+      options.useBoost();
+    }
   };
 
   const onKeyUp = (event: KeyboardEvent): void => {
     if (event.code === "Space") {
       spaceHeld = false;
+    } else if (event.code === "KeyB") {
+      boostHeld = false;
     }
   };
 
   const reset = (): void => {
     spaceHeld = false;
+    boostHeld = false;
   };
 
   options.document.addEventListener("keydown", onKeyDown);

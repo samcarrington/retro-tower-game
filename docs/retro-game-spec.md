@@ -37,6 +37,16 @@ The following features extend the original game:
 - The whole rendered game field has a restrained CRT treatment: slight convex
   screen distortion, horizontal scanlines, animated fine noise, and gentle edge
   darkening. Gameplay coordinates and collision behaviour remain unchanged.
+- Completed runs populate an in-memory top-five high-score table. Scores survive
+  restarts within the current page session but are deliberately cleared by a
+  reload; no browser storage or remote service is used.
+- Every 25 tower destructions earns one boost-jet charge, up to three held
+  charges. Pressing B fires one charge and animates the ship upwards while
+  producing jet exhaust and sound. Earning a charge does not fire it
+  automatically.
+- The secret all-nine-distinct-towers bonus plays a dedicated reward sound and
+  uses the same animated climb motion. Its progress is confined to one run;
+  neither nine repeated destructions nor progress split across runs qualifies.
 
 These additions must preserve the one-airborne-bomb rule, deterministic
 gameplay tests, fixed-step simulation, responsive 960x540 logical field, and
