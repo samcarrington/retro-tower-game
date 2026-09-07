@@ -65,43 +65,46 @@ export const CRT_FRAGMENT_SHADER = `
 `;
 
 const timeUniforms = {
-  uTime: { value: 0, type: "f32" as const },
-  uCurvature: { value: CRT_CURVATURE, type: "f32" as const },
-  uScanlineStrength: { value: CRT_SCANLINE_STRENGTH, type: "f32" as const },
-  uNoiseStrength: { value: CRT_NOISE_STRENGTH, type: "f32" as const },
+	uTime: { value: 0, type: "f32" as const },
+	uCurvature: { value: CRT_CURVATURE, type: "f32" as const },
+	uScanlineStrength: { value: CRT_SCANLINE_STRENGTH, type: "f32" as const },
+	uNoiseStrength: { value: CRT_NOISE_STRENGTH, type: "f32" as const },
 };
 
-export function advanceCrtTime(currentTime: number, deltaSeconds: number): number {
-  if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return currentTime;
-  return (currentTime + deltaSeconds) % 1_000;
+export function advanceCrtTime(
+	currentTime: number,
+	deltaSeconds: number,
+): number {
+	if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return currentTime;
+	return (currentTime + deltaSeconds) % 1_000;
 }
 
 export class CrtSceneFilter {
-  public readonly filter: Filter;
-  private readonly uniforms = new UniformGroup(timeUniforms);
+	public readonly filter: Filter;
+	private readonly uniforms = new UniformGroup(timeUniforms);
 
-  public constructor() {
-    this.filter = Filter.from({
-      gl: { vertex: CRT_VERTEX_SHADER, fragment: CRT_FRAGMENT_SHADER },
-      resources: { crtUniforms: this.uniforms },
-      resolution: 1,
-      antialias: "off",
-      padding: 0,
-    });
-  }
+	public constructor() {
+		this.filter = Filter.from({
+			gl: { vertex: CRT_VERTEX_SHADER, fragment: CRT_FRAGMENT_SHADER },
+			resources: { crtUniforms: this.uniforms },
+			resolution: 1,
+			antialias: "off",
+			padding: 0,
+		});
+	}
 
-  public get time(): number {
-    return this.uniforms.uniforms.uTime;
-  }
+	public get time(): number {
+		return this.uniforms.uniforms.uTime;
+	}
 
-  public update(deltaSeconds: number): void {
-    this.uniforms.uniforms.uTime = advanceCrtTime(
-      this.uniforms.uniforms.uTime,
-      deltaSeconds,
-    );
-  }
+	public update(deltaSeconds: number): void {
+		this.uniforms.uniforms.uTime = advanceCrtTime(
+			this.uniforms.uniforms.uTime,
+			deltaSeconds,
+		);
+	}
 
-  public destroy(): void {
-    this.filter.destroy();
-  }
+	public destroy(): void {
+		this.filter.destroy();
+	}
 }

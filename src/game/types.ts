@@ -1,61 +1,61 @@
 export interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }
 
 export type GameStatus = "ready" | "playing" | "gameover";
 export type GameOverReason = "tower-limit" | "ship-collision" | "ground" | null;
 
 export interface ShipState {
-  rect: Rect;
-  laps: number;
-  climbRemaining: number;
+	rect: Rect;
+	laps: number;
+	climbRemaining: number;
 }
 
 export interface TowerState {
-  rect: Rect;
-  height: number;
-  growthRate: number;
-  respawnRemaining: number;
+	rect: Rect;
+	height: number;
+	growthRate: number;
+	respawnRemaining: number;
 }
 
 export interface BombState {
-  rect: Rect;
-  velocityX: number;
-  velocityY: number;
+	rect: Rect;
+	velocityX: number;
+	velocityY: number;
 }
 
 export type GameEffectType =
-  | "bomb-drop"
-  | "tower-explosion"
-  | "player-explosion"
-  | "all-towers-bonus"
-  | "boost-jet";
+	| "bomb-drop"
+	| "tower-explosion"
+	| "player-explosion"
+	| "all-towers-bonus"
+	| "boost-jet";
 
 export interface GameEffect {
-  id: number;
-  type: GameEffectType;
-  x: number;
-  y: number;
+	id: number;
+	type: GameEffectType;
+	x: number;
+	y: number;
 }
 
 export interface GameState {
-  status: GameStatus;
-  runId: number;
-  elapsedSeconds: number;
-  score: number;
-  ship: ShipState;
-  bomb: BombState | null;
-  towers: TowerState[];
-  destroyedTowerMask: number;
-  destroyedTowerCount: number;
-  towerClearBonusAwarded: boolean;
-  boostCharges: number;
-  effects: GameEffect[];
-  nextEffectId: number;
-  reason: GameOverReason;
+	status: GameStatus;
+	runId: number;
+	elapsedSeconds: number;
+	score: number;
+	ship: ShipState;
+	bomb: BombState | null;
+	towers: TowerState[];
+	destroyedTowerMask: number;
+	destroyedTowerCount: number;
+	towerClearBonusAwarded: boolean;
+	boostCharges: number;
+	effects: GameEffect[];
+	nextEffectId: number;
+	reason: GameOverReason;
 }
 
 export type RandomSource = () => number;

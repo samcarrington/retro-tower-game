@@ -41,8 +41,8 @@ export const FIXED_STEP_SECONDS = 1 / 60;
 export const MAX_FRAME_SECONDS = 0.1;
 
 export const COLOURS = {
-  navy: 0x101827,
-  cream: 0xf6edcf,
-  amber: 0xe8a443,
-  red: 0x8d2535,
+	navy: 0x101827,
+	cream: 0xf6edcf,
+	amber: 0xe8a443,
+	red: 0x8d2535,
 } as const;
