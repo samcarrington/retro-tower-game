@@ -49,7 +49,7 @@ are available (see §6). Earlier browser smoke runs of the production build at
 The core is sound: the simulation is pure, deterministic and well tested; the
 boundaries the design spec asks for are respected in practice, not just on
 paper; resource lifecycles (clock, input, renderer, audio, filter) are
-disposed cleanly. Nothing found rises to *blocking*. The recommended items
+disposed cleanly. Nothing found rises to _blocking_. The recommended items
 below are about robustness at the edges (audio failure handling, input
 modifiers, accessibility of the game-over flow), a handful of test gaps, and
 tooling hygiene (formatter, coverage, engines/CI).
@@ -219,17 +219,17 @@ delta rather than active-frame delta.
 
 The suite is strong on the simulation and shell lifecycle. Gaps observed:
 
-| Area | Gap | Suggested test |
-|---|---|---|
-| `useBoost` | Status guard untested (`ready`/`gameover` should be no-ops); only the altitude guard is covered | `expect(useBoost(readyState)).toBe(readyState)` and same for `gameover` |
-| `useBoost` | Spec says consecutive boosts may queue additional distance; no test fires two boosts before the first climb completes | Fire twice, assert `climbRemaining === 2 × SHIP_BOOST_CLIMB` (or clamped), then step and assert final `y` |
-| Climb × wrap | No test for a lap wrap occurring mid-climb (descent 16 and climb 96 px/s interact) | Place ship at `x = 959` with `climbRemaining > 0`, step, assert `y` reflects both |
-| Session | `B` key path not exercised through `createGameSession`; `#boost-count` DOM never asserted | Set `boostCharges` via a scripted run or expose a hook; press `KeyB`; assert charge decrement and DOM text |
-| Session | High-score table: only a single zero-score run is asserted. No test for a second run adding a second entry, ordering, or the five-entry cap at the DOM level | Drive two natural game-overs with different scores (or inject state) and assert list order/length |
-| Session | Audio `play` throwing (R1) is untested | Mock `play` to throw once; assert current behaviour, then the desired behaviour |
-| Simulation | `MAX_EFFECT_EVENTS` truncation never exercised | Emit 33+ effects, assert length 32 and that ids remain monotonic |
-| Renderer | `pixi-renderer.ts` has no automated coverage (requires WebGL) | Acceptable, but record the manual browser smoke steps as a checklist, or add a Playwright smoke job that asserts no console errors and canvas 960×540 |
-| Coverage | No coverage provider or threshold (R7) | Add `@vitest/coverage-v8`, set a floor |
+| Area         | Gap                                                                                                                                                          | Suggested test                                                                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useBoost`   | Status guard untested (`ready`/`gameover` should be no-ops); only the altitude guard is covered                                                              | `expect(useBoost(readyState)).toBe(readyState)` and same for `gameover`                                                                               |
+| `useBoost`   | Spec says consecutive boosts may queue additional distance; no test fires two boosts before the first climb completes                                        | Fire twice, assert `climbRemaining === 2 × SHIP_BOOST_CLIMB` (or clamped), then step and assert final `y`                                             |
+| Climb × wrap | No test for a lap wrap occurring mid-climb (descent 16 and climb 96 px/s interact)                                                                           | Place ship at `x = 959` with `climbRemaining > 0`, step, assert `y` reflects both                                                                     |
+| Session      | `B` key path not exercised through `createGameSession`; `#boost-count` DOM never asserted                                                                    | Set `boostCharges` via a scripted run or expose a hook; press `KeyB`; assert charge decrement and DOM text                                            |
+| Session      | High-score table: only a single zero-score run is asserted. No test for a second run adding a second entry, ordering, or the five-entry cap at the DOM level | Drive two natural game-overs with different scores (or inject state) and assert list order/length                                                     |
+| Session      | Audio `play` throwing (R1) is untested                                                                                                                       | Mock `play` to throw once; assert current behaviour, then the desired behaviour                                                                       |
+| Simulation   | `MAX_EFFECT_EVENTS` truncation never exercised                                                                                                               | Emit 33+ effects, assert length 32 and that ids remain monotonic                                                                                      |
+| Renderer     | `pixi-renderer.ts` has no automated coverage (requires WebGL)                                                                                                | Acceptable, but record the manual browser smoke steps as a checklist, or add a Playwright smoke job that asserts no console errors and canvas 960×540 |
+| Coverage     | No coverage provider or threshold (R7)                                                                                                                       | Add `@vitest/coverage-v8`, set a floor                                                                                                                |
 
 None of these gaps hides a known defect; they are places where a regression
 would currently go unnoticed.
@@ -256,14 +256,14 @@ In rough priority order:
 
 ## Appendix — checklist coverage
 
-| Checklist area | Assessment |
-|---|---|
-| PR hygiene and scope | Not assessable (no Git history). Docs are updated alongside features — good. |
-| Correctness and behaviour | Sound. Guards for NaN/≤0 deltas, terminal-state priority, clamped climbs, one-bomb rule all present and tested. |
-| Tests and coverage | Good breadth on pure modules; gaps listed in §6; no coverage measurement. |
-| Security | Low surface. DOM writes use `textContent` only; no secrets; deps pinned with lockfile. No concerns. |
-| Performance and reliability | Bounded pools and event history; per-frame allocations acceptable; audio buffer churn (R10) minor. Clean disposal everywhere. |
-| Maintainability and readability | Clear naming and small functions; `session.ts` is the one large module (R9); formatting inconsistent (R6). |
-| Architecture and boundaries | Matches the design spec; simulation is genuinely pure. |
-| Documentation and ops | Specs/plan/README thorough; missing `engines`, CI, formatter, LICENSE. |
-| UX/UI and accessibility | Responsive layout verified; keyboard-only by design; game-over focus/announcement gap (R4). |
+| Checklist area                  | Assessment                                                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| PR hygiene and scope            | Not assessable (no Git history). Docs are updated alongside features — good.                                                  |
+| Correctness and behaviour       | Sound. Guards for NaN/≤0 deltas, terminal-state priority, clamped climbs, one-bomb rule all present and tested.               |
+| Tests and coverage              | Good breadth on pure modules; gaps listed in §6; no coverage measurement.                                                     |
+| Security                        | Low surface. DOM writes use `textContent` only; no secrets; deps pinned with lockfile. No concerns.                           |
+| Performance and reliability     | Bounded pools and event history; per-frame allocations acceptable; audio buffer churn (R10) minor. Clean disposal everywhere. |
+| Maintainability and readability | Clear naming and small functions; `session.ts` is the one large module (R9); formatting inconsistent (R6).                    |
+| Architecture and boundaries     | Matches the design spec; simulation is genuinely pure.                                                                        |
+| Documentation and ops           | Specs/plan/README thorough; missing `engines`, CI, formatter, LICENSE.                                                        |
+| UX/UI and accessibility         | Responsive layout verified; keyboard-only by design; game-over focus/announcement gap (R4).                                   |
